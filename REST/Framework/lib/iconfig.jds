@@ -1,0 +1,12 @@
+var iwebz=iwebz||{};
+iwebz.globalTimeFormat = "hh24:mi:ss";
+iwebz.globalDateFormat = "MM-dd-yyyy";
+iwebz.globalDateTimeFormat = "MM-dd-yyyy hh24:mi:ss";
+iwebz.bsDateFormat = {"dd-MM-yyyy":"dd-mm-yyyy","MM-dd-yyyy":"mm-dd-yyyy"};
+iwebz.applicationtitle="iWealth";
+iwebz.product_version="1.0";
+iwebz.copy_right_year="2016";
+iwebz._reload=true;
+iwebz.off_address="301,Tower 3,Palm Spring,<br>New Link Road ,Mindspace,<br>Malad(w),<br>Mumbai 400064";
+iwebz.defaultview="MyPortfolio/V1" // i.e. viewname/viewid
+iwebz.app_settings=["_reload","globalDateFormat","applicationtitle","off_address","defaultview","bsDateFormat"]

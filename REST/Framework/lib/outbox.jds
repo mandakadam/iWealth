@@ -1,0 +1,546 @@
+
+/*
+ *@filename  outbox.jds
+ *@desc      Performs Email/SMS/Tweet/Facebook
+ *@author     vikas
+ *@dated      08-01-2010
+ *@version    1        
+**/
+
+// Variables
+var ibox={};
+
+
+/**
+ *@event      getOutboxData
+ *@desc       get the data for the grid
+ *@author     vikas
+ *@dated      08-01-2010
+ *@param      vObj{Object} - Grid Data object
+ **/
+ibox.getOutboxData=function(vObj)
+{
+  var vSQL = "";
+  var vValues = getTabWhereClause(vObj.paramdata);
+ 	vValues = vValues + getFwkWhereClause(vObj.filter);
+  var order_by=getTabSortColumn(vObj);
+  var response=getMastesColumnNames("iwz_outbox");
+      if(response.status=="success")
+      {
+	      vSQL="select "+response.colnames +" from iwz_outbox where 1=1 "+vValues;
+  	  }
+	  else
+	  {
+		  vSQL="select * from iwz_outbox where 1=1 "+vValues;	
+ 	  }
+  //var vSQL="select * from iwz_outbox a where 1=1 "+vValues;
+  //appendFileText(serverPath+"/Abhiram.txt","\nQuery :"+vSQL);
+  if(vObj.isSQL=="1")
+		return vSQL;
+  if(vObj.start!=-1 && vObj.limit!=-1)	
+  	vSQL=getPageWiseQuery(vSQL,parseInt(vObj.start),parseInt(vObj.start)+parseInt(vObj.limit));
+  return SQL(vSQL);
+} 
+
+/**
+ *@event      ibox.onMsgAuthClient
+ *@desc       calls the onAuthMsg function by passing the array of Msg Ref. Nos.
+ *@author     praveen
+ *@dated      13-01-2010
+ **/
+ibox.onMsgAuthClient=function()
+{
+  var JString= request.getParameter('JString');
+  //appendFileText(serverPath+"/Append.txt","\n JString : "+JString);
+  var param_authMsg = eval('(' + JString + ')');
+  var msg_ref = new Array(); 
+  for(i=0;i<param_authMsg.data.length;i++)
+  {
+        msg_ref[msg_ref.length] = param_authMsg.data[i];
+  }
+  var msg_Object = {};
+  //appendFileText(serverPath+"/praveen.txt","\n msg_ref : "+msg_ref.join("','"));
+  msg_Object["msg_refno"] = msg_ref;
+  var auth_status = ibox.onMsgAuth(msg_Object);
+  if(auth_status.status == "unsuccess")
+    	 return '{"status":"unsuccess","error":"'+auth_status.error+'"}';
+  else
+      return '{"status":"success","msg":"'+auth_status.msg+'"}';
+}
+
+/**
+ *@event      ibox.onMsgUnAuthClient
+ *@desc       calls the onUnAuthMsg function by passing the array of Msg Ref. Nos.
+ *@author     praveen
+ *@dated      13-01-2010
+ **/
+ibox.onMsgUnAuthClient=function()
+{
+  var JString= request.getParameter('JString');
+  //appendFileText(serverPath+"/Append.txt","\n JString : "+JString);
+  var param_unauthMsg = eval('(' + JString + ')');
+  var refArray = new Array(); 
+  for(i=0;i<param_unauthMsg.data.length;i++)
+  {
+        refArray[refArray.length] = param_unauthMsg.data[i];
+  }
+  var msg_Object = {};
+  //appendFileText(serverPath+"/praveen.txt","\n msg_ref : "+refArray.join("','"));
+  msg_Object["msg_refno"] = refArray;
+  var auth_status = ibox.onMsgUnAuth(msg_Object);
+  if(auth_status.status == "unsuccess")
+    	 return '{"status":"unsuccess","error":"'+auth_status.error+'"}';
+  else
+      return '{"status":"success","msg":"'+auth_status.msg+'"}';	
+}
+
+
+/**
+ *@event      ibox.onMsgCancClient
+ *@desc       calls the onMsgCanc function by passing the array of Msg Ref. Nos. and remarks
+ *@author     praveen
+ *@dated      13-01-2010
+ **/
+ibox.onMsgCancClient=function()
+{
+  var JString = request.getParameter('JString');
+  var remarks = request.getParameter('remarks');
+  //appendFileText(serverPath+"/Append.txt","\n JString : "+JString);
+  var param_cancMsg = eval('(' + JString + ')');
+  var refArray = new Array(); 
+  for(i=0;i<param_cancMsg.data.length;i++)
+  {
+        refArray[refArray.length] = param_cancMsg.data[i];
+  }
+  var msg_Object = {};
+  //appendFileText(serverPath+"/praveen.txt","\n msg_ref : "+refArray.join("','"));
+  msg_Object["msg_refno"] = refArray;
+  var auth_status = ibox.onMsgCanc(msg_Object,remarks);
+  if(auth_status.status == "unsuccess")
+    	 return '{"status":"unsuccess","error":"'+auth_status.error+'"}';
+  else
+      return '{"status":"success","msg":"'+auth_status.msg+'"}';		
+}
+
+/**
+ *@event      ibox.onMsgUnAuthClient
+ *@desc       calls the onUnAuthMsg function by passing the array of Msg Ref. Nos.
+ *@author     praveen
+ *@dated      13-01-2010
+ **/
+ibox.onMsgUnCancClient=function()
+{
+  var JString= request.getParameter('JString');
+  //appendFileText(serverPath+"/Append.txt","\n JString : "+JString);
+  var param_uncancMsg = eval('(' + JString + ')');
+  var refArray = new Array(); 
+  for(i=0;i<param_uncancMsg.data.length;i++)
+  {
+        refArray[refArray.length] = param_uncancMsg.data[i];
+  }
+  var msg_Object = {};
+  //appendFileText(serverPath+"/praveen.txt","\n msg_ref : "+refArray.join("','"));
+  msg_Object["msg_refno"] = refArray;
+  var auth_status = ibox.onMsgUnCanc(msg_Object);
+  if(auth_status.status == "unsuccess")
+    	 return '{"status":"unsuccess","error":"'+auth_status.error+'"}';
+  else
+      return '{"status":"success","msg":"'+auth_status.msg+'"}';	
+}
+
+/**
+ *@event      ibox.onMsgProcessClient
+ *@desc       calls the onMsgProcess function by passing the array of Msg Ref. Nos. and remarks
+ *@author     praveen
+ *@dated      13-01-2010
+ **/
+ibox.onMsgProcessClient=function()
+{
+  var JString = request.getParameter('JString');
+  var remarks = request.getParameter('remarks');
+  //appendFileText(serverPath+"/Append.txt","\n JString : "+JString);
+  var param_processMsg = eval('(' + JString + ')');
+  var refArray = new Array(); 
+  for(i=0;i<param_processMsg.data.length;i++)
+  {
+        refArray[refArray.length] = param_processMsg.data[i];
+  }
+  var msg_Object = {};
+  //appendFileText(serverPath+"/praveen.txt","\n msg_ref : "+refArray.join("','"));
+  msg_Object["msg_refno"] = refArray;
+  var auth_status = ibox.onMsgProcess(msg_Object,remarks);
+  if(auth_status.status == "unsuccess")
+    	 return '{"status":"unsuccess","error":"'+auth_status.error+'"}';
+  else
+      return '{"status":"success","msg":"'+auth_status.msg+'"}';		
+}
+/**
+ *@event      ibox.onMsgAuth
+ *@desc       Authorises the Message
+ *@author     praveen
+ *@param      o{Object} - takes object as input
+ *@cfg        msg_refno(Array)  
+ *@dated      08-01-2010
+ *@valdations
+ *            Check if msg refno is passed or null  
+ **/ 
+ibox.onMsgAuth=function(o)
+{
+  //Variables
+  var o=o||{};
+  var vUSQL= null;
+  var audResp=null;
+  //1.1 Check if msg refno is passed or null
+  if(!o.msg_refno) return {"status":"unsuccess","msg":"Invalid number of parameterss.Please specify msg Ref no"};
+  // 1.2 Convert the msg_ref_noi in standard Query format
+  o.mod_msg_refno="'"+o.msg_refno.join("','")+"'";
+  //2.1 Update the msg ref no where status is UAU 			  
+  vUSQL = "update iwz_outbox set msg_status='AUT', authby='"+userObj.userid+"',authon=sysdate where msg_refno in ("+o.mod_msg_refno+") and msg_status in ('UAU');";
+  //appendFileText(serverPath+"/praveen.txt","\n o.mod_msg_refno : "+vUSQL);
+  audResp = makeAudit(
+    {
+      issql:true
+      ,tab:"iwz_outbox"
+      ,opr:"auth"
+      ,res:"auth"
+      ,user:userObj.user_id
+      ,sqlwhr:" msg_refno in ("+o.mod_msg_refno+")"
+    });
+  vUSQL = "BEGIN  \n"+vUSQL+"\n "+audResp+"; END;";
+  //appendFileText(serverPath+"/praveen.txt","\n vUSQL : "+vUSQL); 
+  vUSQL=execSQLResultset(vUSQL);
+  if(vUSQL.status=="success")
+    return {"status":"success","msg":"Messages("+vUSQL.recordcount+") authorised successfully."};
+  else
+    return {"status":"unsuccess","error":"Message authorisation failed."+vUSQL.error};  
+}
+
+/**
+ *@event      ibox.onMsgUnAuth
+ *@desc       UnAuthorises the Message
+ *@author     praveen
+ *@param      o{Object} - takes object as input
+ *@cfg        msg_refno(Array)  
+ *@dated      08-01-2010
+ *@valdations
+ *            Check if msg refno is passed or null  
+ **/ 
+ibox.onMsgUnAuth=function(o)
+{
+  //Variables
+  var o=o||{};
+  var vUSQL= null;
+  var audResp=null;
+  //1.1 Check if msg refno is passed or null
+  if(!o.msg_refno) return {"status":"unsuccess","msg":"Invalid number of parameterss.Please specify msg Ref no"};
+//   appendFileText(serverPath+"/praveen.txt","\n chk null");
+  // 1.2 Convert the msg_ref_noi in standard Query format
+  o.mod_msg_refno="'"+o.msg_refno.join("','")+"'";
+  //appendFileText(serverPath+"/praveen.txt","\n o.mod_msg_refno : "+o.mod_msg_refno);
+  //2.1 Update the msg ref no where status is AUT 			  
+  vUSQL = "update iwz_outbox set msg_status='UAU', authby='"+userObj.userid+"',authon=sysdate where msg_refno in ("+o.mod_msg_refno+") and msg_status in ('AUT');";
+  //appendFileText(serverPath+"/praveen.txt","\n o.mod_msg_refno : "+vUSQL);
+
+  audResp = makeAudit(
+    {
+      issql:true
+      ,tab:"iwz_outbox"
+      ,opr:"unauth"
+      ,res:"unauth"
+      ,user:userObj.user_id
+      ,sqlwhr:" msg_refno in ("+o.mod_msg_refno+")"
+    });
+  vUSQL = "BEGIN \n"+vUSQL+" \n"+audResp+"; \n END;";
+  vUSQL=execSQLResultset(vUSQL);
+  
+  if(vUSQL.status=="success")
+    return {"status":"success","msg":"Messages("+vUSQL.recordcount+") UnAuthorised successfully."};
+  else
+    return {"status":"unsuccess","error":"Message UnAuthorisation failed."+vUSQL.error};  
+}
+
+
+/**
+ *@event      ibox.onMsgCanc
+ *@desc       Cancels the authorised/ un authorised messages
+ *@author     praveen
+ *@dated      08-01-2010
+ **/
+ibox.onMsgCanc=function(o,remarks)
+{
+  //Variables
+  var o=o||{};
+  var vUSQL= null;
+  var audResp=null;
+  //1.1 Check if msg refno is passed or null
+  if(!o.msg_refno) return {"status":"unsuccess","msg":"Invalid number of parameterss.Please specify msg Ref no"};
+  //appendFileText(serverPath+"/praveen.txt","\n chk null");
+  // 1.2 Convert the msg_ref_noi in standard Query format
+  o.mod_msg_refno="'"+o.msg_refno.join("','")+"'";
+  //appendFileText(serverPath+"/praveen.txt","\n o.mod_msg_refno : "+o.mod_msg_refno);
+  //2.1 Update the msg ref no where status is AUT,ERR 			  
+  vUSQL = "update iwz_outbox set msg_status='CAN', authby='"+userObj.userid+"',authon=sysdate,remarks='"+remarks+"' where msg_refno in ("+o.mod_msg_refno+") and msg_status in ('AUT','ERR');";
+  //appendFileText(serverPath+"/praveen.txt","\n o.mod_msg_refno : "+vUSQL);
+  audResp = makeAudit(
+    {
+      issql:true
+      ,tab:"iwz_outbox"
+      ,opr:"update"
+      ,res:"canc"
+      ,user:userObj.user_id
+      ,sqlwhr:" msg_refno in ("+o.mod_msg_refno+")"
+    });
+  vUSQL = "BEGIN \n"+vUSQL+" \n"+audResp+"; \n END;";  
+  vUSQL=execSQLResultset(vUSQL);
+  
+  if(vUSQL.status=="success")
+    return {"status":"success","msg":"Messages("+vUSQL.recordcount+") cancelled successfully."};
+  else
+    return {"status":"unsuccess","error":"Message cancellation failed."+vUSQL.error};
+}
+
+
+
+/**
+ *@event      ibox.onMsgUnCanc
+ *@desc       Cancels the authorised/ un authorised messages
+ *@author     praveen
+ *@dated      08-01-2010
+ **/
+ibox.onMsgUnCanc=function(o)
+{
+  //Variables
+  var o=o||{};
+  var vUSQL= null;
+  var audResp=null;
+  //1.1 Check if msg refno is passed or null
+  if(!o.msg_refno) return {"status":"unsuccess","msg":"Invalid number of parameterss.Please specify msg Ref no"};
+//   appendFileText(serverPath+"/praveen.txt","\n chk null");
+  // 1.2 Convert the msg_ref_noi in standard Query format
+  o.mod_msg_refno="'"+o.msg_refno.join("','")+"'";
+  //appendFileText(serverPath+"/praveen.txt","\n o.mod_msg_refno : "+o.mod_msg_refno);
+  //2.1 Update the msg ref no where status is CAN 			  
+  vUSQL = "update iwz_outbox set msg_status='AUT' where msg_refno in ("+o.mod_msg_refno+") and msg_status in ('CAN');";
+  //appendFileText(serverPath+"/praveen.txt","\n o.mod_msg_refno : "+vUSQL);
+  audResp = makeAudit(
+    {
+      issql:true
+      ,tab:"iwz_outbox"
+      ,opr:"update"
+      ,res:"uncanc"
+      ,user:userObj.user_id
+      ,sqlwhr:" msg_refno in ("+o.mod_msg_refno+")"
+    });
+  vUSQL = "BEGIN \n"+vUSQL+" \n"+audResp+"; \n END;";  
+  vUSQL=execSQLResultset(vUSQL);
+  
+  if(vUSQL.status=="success")
+    return {"status":"success","msg":"Messages("+vUSQL.recordcount+") UnCancelled successfully."};
+  else
+    return {"status":"unsuccess","error":"Message UnCancellation failed."+vUSQL.error};  
+
+}
+
+/**
+ *@event      onMsgProcess.
+ *@desc       Process the selected Authorised messages
+ *@author     praveen
+ *@dated      08-01-2010
+ **/
+ibox.onMsgProcess=function(o,remarks)
+{
+  //Variables
+  var o=o||{};
+  var vUSQL= null;
+  var audResp=null;
+  //1.1 Check if msg refno is passed or null
+  if(!o.msg_refno) return {"status":"unsuccess","msg":"Invalid number of parameterss.Please specify msg Ref no"};
+  //appendFileText(serverPath+"/praveen.txt","\n chk null");
+  // 1.2 Convert the msg_ref_noi in standard Query format
+  o.mod_msg_refno="'"+o.msg_refno.join("','")+"'";
+  //appendFileText(serverPath+"/praveen.txt","\n o.mod_msg_refno : "+o.mod_msg_refno);
+  //2.1 Update the msg ref no where status is AUT,ERR 			  
+  vUSQL = "update iwz_outbox set msg_status='AUT', msg_constraint = 'ASAP', remarks='"+remarks+"',prefdatetime = sysdate,priority = '1' where msg_refno in ("+o.mod_msg_refno+") and msg_status in ('AUT','ERR');";
+  //appendFileText(serverPath+"/praveen.txt","\n o.mod_msg_refno : "+vUSQL);
+  audResp = makeAudit(
+    {
+      issql:true
+      ,tab:"iwz_outbox"
+      ,opr:"update"
+      ,res:"process"
+      ,user:userObj.user_id
+      ,sqlwhr:" msg_refno in ("+o.mod_msg_refno+") and msg_status in ('AUT','ERR')"
+    });
+  vUSQL = "BEGIN \n"+vUSQL+" \n"+audResp+"; \n END;";  
+  appendFileText(serverPath+"/praveen.txt","\n Process Query : \n "+vUSQL);
+  vUSQL=execSQLResultset(vUSQL);
+  
+  if(vUSQL.status=="success")
+    return {"status":"success","msg":"Messages("+vUSQL.recordcount+") processed successfully."};
+  else
+    return {"status":"unsuccess","error":"Message Processing failed."+vUSQL.error};
+}
+
+ibox.testPutMailReq = function()
+{
+	//variables declaration
+	var testObject = {};
+	var chkstatus = null;
+	
+	//object declaration
+	testObject.to = "praveent@credenceanalytics.com,rajendrahegde@credenceanalytics.com";
+	testObject.cc = "pramodyadav@credenceanalytics.com,vikasprabhu@credenceanalytics.com";
+	testObject.bcc = "praveen.tallakokula@gmail.com";
+	testObject.msg_type = "MAL";
+	testObject.msg_files = "";
+	testObject.msg_constraint="ASAP";
+	testObject.msg_sub="TESTING put Mail Request";
+	testObject.prefdatetime="";
+	testObject.msg_body="testing and debugging";	
+	testObject.msg_from="praveent@credenceanalytics.com";
+
+	// calling function 
+	chkstatus = ibox.putMailReq(testObject);
+	//appendFileText(serverPath+"/praveen.txt","\n chkstatus : "+chkstatus.status);
+	if(chkstatus.status=="success")
+		return '{"status":"success","msg":"object created successfully"}';
+	else
+		return '{"status":"unsuccess","error":"'+chkstatus.error+'"}';
+}
+
+
+/**
+ *@event      ibox.putMailReq
+ *@desc       This will put the mail request in the que
+ *@author     vikas
+ *@dated      08-01-2010
+ *@param      Param1{String} - param Description
+ *@param      Param1{String} - param Description
+ *@validation 
+              * Val Desc                   
+ *@return     Return Data Desc
+ **/
+ibox.putMailReq=function(o)
+{
+	log.info("Inside function ibox.putMailReq");
+	//variables
+	var o = o||{};
+	var mailObject={};
+	var mReq = null;
+	//appendFileText(serverPath+"/praveen.txt","\n chkstatus : 1 ");
+	//1.1 Check if msg refno is passed or null
+	if(!o.to) return {"status":"unsuccess","error":"Invalid number of parameterss.Please specify all parmaters"};
+	//appendFileText(serverPath+"/praveen.txt","\n chkstatus : 1 ");
+	// Create the mail Object
+	mailObject.msg_type=o.msg_type;
+	mailObject.msg_to="to:"+o.to+";cc:"+o.cc+";bcc:"+o.bcc;
+	mailObject.msg_files=o.msg_files;
+	mailObject.msg_constraint=o.msg_constraint;
+	mailObject.msg_sub=o.msg_sub;
+	mailObject.prefdatetime=o.prefdatetime;
+	mailObject.msg_body=o.msg_body;
+	mailObject.msg_from=o.msg_from;
+	appendFileText(serverPath+"/msg_from.txt","\n  mailObject.msg_from "+mailObject.msg_from);
+	mailObject.msg_status=o.msg_status||"UAU";
+	mailObject.opts2=o.callback||"";
+	//appendFileText(serverPath+"/praveen.txt","\n chkstatus : 2 ");
+	log.info("Before function ibox.putMainRequest");
+	mReq = ibox.putMainRequest(mailObject);
+	log.info("After function ibox.putMainRequest :: "+mReq.status);
+	//appendFileText(serverPath+"/praveen.txt","\n mReq.status "+mReq.status);
+	if(mReq.status=="success")
+		return {"status":"success","msg":mReq.msg,"ref_no":mReq.ref_no};
+	else
+		return {"status":"unsuccess","error":mReq.error};
+}
+
+ibox.putMainRequest = function(Obj)
+{
+	var emailObj=null;
+	var iSQL =null;
+	//validations if value passed or null
+	if(!Obj.msg_type && Obj.msg_type=="") return {"status":"unsuccess","error":"Message type not specified , please specify the message"};
+	if(!Obj.msg_body && Obj.msg_body=="") return {"status":"unsuccess","error":"Message body does not exist , please specify the message body"};
+	if(!Obj.msg_sub && Obj.msg_sub=="") return {"status":"unsuccess","error":"Subject does not exist , please specify the subject"};
+	if(!Obj.msg_constraint && Obj.msg_constraint=="") return {"status":"unsuccess","error":"Constraint does not exist , please specify constraint"};
+//appendFileText(serverPath+"/praveen.txt","\n mReq.status 3 ");
+	if(Obj.msg_constraint=="")
+	{
+		if(!Obj.prefdatetime && Obj.prefdatetime == "")
+			return {"status":"unsuccess","error":"Preffered Date should exists as constraint not available"};
+	}
+	
+	var Blobbody=Obj.msg_body;
+	appendFileText(serverPath+"/MailReport.txt","\n BODY"+Obj.msg_body)
+	Obj.msg_body="";
+	Obj.msg_refno="";
+	//appendFileText(serverPath+"/praveen.txt","\n mReq.status 4 ");
+	if(!Obj.opts2 || Obj.opts2==undefined)
+		Obj.fieldnames="msg_refno,msg_type,msg_to,msg_from,msg_sub,msg_files,msg_body,msg_constraint,prefdatetime,msg_status".split(",");
+	else
+		Obj.fieldnames="msg_refno,msg_type,msg_to,msg_from,msg_sub,msg_files,msg_body,msg_constraint,prefdatetime,msg_status,opts2".split(",");
+	iSQL = getInsertData(Obj,'iwz_outbox',false);
+	
+	var pkey=eval('('+iSQL+')');
+	
+	var setBlobBody=setBlobText("iwz_outbox","msg_body",Blobbody,"and msg_refno='"+pkey.out.msg_refno+"'");
+	
+	var updateFlag="update iwz_outbox set msg_status='AUT',tbs='N' where msg_refno='"+pkey.out.msg_refno+"'" 
+	updateFlag=execSQL(updateFlag);
+	
+	if(pkey.status=='success')
+		return {"status":"success","msg":"Object prepared properly","ref_no":pkey.out.msg_refno};
+	else 
+		return {"status":"unsuccess","msg":"Object could not be prepared properly"};
+}
+
+/**
+ *@event      ibox.putSMSReq
+ *@desc       This will put the SMS request in the que
+ *@author     vikas
+ *@dated      08-01-2010
+ *@param      Param1{String} - param Description
+ *@param      Param1{String} - param Description
+ *@validation 
+              * Val Desc                   
+ *@return     Return Data Desc
+ **/
+ibox.putSMSReq=function()
+{
+
+}
+
+
+/**
+ *@event      ibox.putTWTReq
+ *@desc       This will put the Tweet request in the que
+ *@author     vikas
+ *@dated      08-01-2010
+ *@param      Param1{String} - param Description
+ *@param      Param1{String} - param Description
+ *@validation 
+              * Val Desc                   
+ *@return     Return Data Desc
+ **/
+ibox.putTWTReq=function()
+{
+
+}
+
+/**
+ *@event      ibox.putFBKReq
+ *@desc       This will put the Facebook request in the que
+ *@author     vikas
+ *@dated      08-01-2010
+ *@param      Param1{String} - param Description
+ *@param      Param1{String} - param Description
+ *@validation 
+              * Val Desc                   
+ *@return     Return Data Desc
+ **/
+ibox.putFBKReq=function()
+{
+
+}
+
+

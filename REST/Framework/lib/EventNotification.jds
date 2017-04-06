@@ -1,0 +1,852 @@
+var iEN={};
+var ibox = ibox || {};
+iEN.log=function(m,f)
+{
+  //return;
+  var f=f||"Event Notification";
+  if(!m) return;
+  appendFileText(serverPath+"/log/"+f+"-"+getServerDate()+".txt","\n"+getMiliseconds()+" : "+m);  
+}
+
+/**
+ *@event      iEN.logNotification.
+ *@author     Mohini
+**/
+iEN.logNotification=function(logObj)
+{
+  var Obj=logObj||{}
+  if(Obj.update)
+    execSQL("update iwz_notify_log  set status='"+Obj.status+"',msg='"+Obj.msg+"' where logno='"+Obj.seqno+"'");
+  else  
+    execSQL("insert into iwz_notify_log values('"+Obj.seqno+"', '"+userObj.user_id+"', '"+userObj.sessionid+"', '"+Obj.event_id+"', '"+Obj.status+"', '"+Obj.msg+"',utl_raw.cast_to_raw('"+_encode(logObj.data)+"'), sysdate)");
+}
+
+/**
+ *@event      FunctionName.
+ *@desc       Function Description
+ *@author     Mohini
+ *@dated      
+ *@param      Param1{String} - param Description
+ *@param      Param1{String} - param Description
+ *@validation 
+              * Val Desc                   
+ *@return     Return Data Desc
+ **/
+iEN.onProcessEvent=function()
+{
+   var event_id="E1";
+//  var vdata='{"client_id":"13072","trans_no":"133108"}'
+  var level="1"
+  
+ // var vdata="{'client_account':'33820','trans_date':'11-19-2014 04:02 PM (PST)','subs_date':'11-19-2014','uitf_code':'007','uitf_name':'Baroda MF Scheme','casa':'121274745555111','casaAccId':'ff80808146b818f10146b8582039000c','amount':'25,000','currency':'USD','email_to':'mohinimemane@credenceanalytics.com','reference_no':'20141474','application_no':'15075'}"
+ var vdata="{'user_id':'123','user_name':'Vikas','pwd':'12345','email_id':'vikaschaudhary@credenceanalytics.com'}";
+  var vObj={"event_id":event_id,"level":"1","vdata":vdata};
+  var response=iEN.onProcessNotification(vObj);
+  return "";
+}
+
+/**
+ *@event      iwebz.onProcessNotification.
+ *@desc       Process Notification 
+ *@author     Mohini
+ *@dated      07-11-2014 6:44:16 PM
+ *@return     Status
+**/
+iEN.onProcessNotification=function(processObj)
+{ 
+  iEN.log("\n\n\n\n\n.................Start Processing.......................");
+  
+  var response,vdata,seqno,vObj,deliveryResp,errmsg;
+  if(!processObj.level || !processObj.event_id)
+  {
+    iEN.log("Insufficient data event data");
+    return '{"status":"unsuccess","msg":"","error":"Insufficient data"}';
+  }
+
+  seqno=SQLResultset("select seq_notify_logno.nextval from dual").data[0][0];
+  
+  iEN.logNotification({"seqno":seqno,"event_id":processObj.event_id,"status":"","msg":"","update":false,"data":processObj.vdata});
+  try
+  {
+    vdata=processObj.vdata||'{}'
+    vdata=eval('('+vdata+')');
+  }
+  catch(error)
+  {
+    iEN.log("Error while evaluating event paramdata.Event : "+processObj.event_id+".Error :"+error+".Data : "+vdata);
+    return '{"status":"unsuccess","msg":"","error":"Error while evaluating event paramdata."}';
+  }
+   
+  vObj={"event_id":processObj.event_id,"level":processObj.level,"vdata":vdata,"seqno":seqno};
+  response=iEN.processNotification(vObj);
+  if(response.status=="success")
+  {
+    iEN.log("Process emailing...");
+    deliveryResp = iEN.deliverNotification(response.data);
+    
+    iEN.log("Delivery Status : "+deliveryResp.status +""+deliveryResp.error);
+    if(deliveryResp.status=="success")
+    {
+     iEN.logNotification({"seqno":seqno,"event_id":processObj.event_id,"status":"1","msg":response.msg,"update":true});
+     return '{"status":"success","msg":"","error":""}';
+    }
+    else
+    {
+     iEN.logNotification({"seqno":seqno,"event_id":processObj.event_id,"status":"0","msg":response.error,"update":true});
+     return '{"status":"unsuccess","msg":"","error":"'+deliveryResp.error+'"}';
+    }
+  }
+  else
+  {
+    iEN.logNotification({"seqno":seqno,"event_id":processObj.event_id,"status":"0","msg":response.error,"update":true});
+    return '{"status":"unsuccess","msg":"","error":"'+response.error+'"}';
+  }  
+}
+
+/**
+ *@event      ifwk.processNotification.
+ *@desc       Process Notification Event
+ *@author     Mohini
+ *@dated      07-11-2014 6:55:25 PM
+ *@param      event_id{String} - Event id to be processed
+ *@return     status
+**/
+iEN.processNotification=function(vObj)
+{
+  var vObj=vObj||{};
+  var repObj={};
+  var NObj={}
+  var repQry=""
+  var filtercheck=false;
+  var vSql="";
+  var loopbreak=false;
+  var response,reportpath;
+  iEN.log("\n\n*******************Process Event :"+vObj.event_id+"*****************");
+  vSql="SELECT notify_id, paramname, paramvalue FROM iwz_notify_defn WHERE event_id='"+vObj.event_id+"'";
+  vSql=SQLStore(vSql);
+  try
+  {
+    vSql=eval('('+vSql+')');
+  }
+  catch(error)
+  {
+    iEN.log("Error while evaluating notification data.Data:"+vSql);
+    return {"status":"unsuccess","msg":"","error":error};
+  }
+  if(vSql.recordcount==0)
+  {
+    iEN.log("No event configuration present for event "+vObj.event_id);  
+    return {"status":"unsuccess","msg":"","error":"No event configuration present."};
+  }
+    
+  iEN.log("Prepare the notification object...");
+  for(var i=0,len=vSql.recordcount;i<len;i++)
+  {
+  
+  /****For BLOB TYPE DATA*******/
+	  if(vSql.data[i].paramvalue=="email")
+	  {
+		var ebody=getBlobText('iwz_notify_emailbody','emailbody','',"and event_id='"+vObj.event_id+"' and notify_id='"+vSql.data[i].notify_id+"'");
+		NObj[vSql.data[i].notify_id]['e_body']=ebody;
+	  }
+  /**********************/
+   if(NObj[vSql.data[i].notify_id])
+    NObj[vSql.data[i].notify_id][vSql.data[i].paramname]=vSql.data[i].paramvalue;
+   else
+   {
+    NObj[vSql.data[i].notify_id]={}
+    NObj[vSql.data[i].notify_id][vSql.data[i].paramname]=vSql.data[i].paramvalue;
+   }
+  }
+  reportpath=getParameter('_pp_reppath');
+  if(reportpath=="")
+    return {"status":"unsuccess","msg":"","error":"Report generation path not configured."};
+
+  serverdate=getServerDateTime().replace("-","","\g").replace(":","","\g").replace(" ","","\g");
+  reportpath=reportpath+"/"+"EN_"+vObj.event_id+"_"+serverdate+""+vObj.seqno;
+  iEN.log("Report generation path : "+reportpath); 
+  repObj.reportpath=reportpath;
+  
+  iEN.log("Start processing notification");
+  for(var key in NObj)
+  {
+    iEN.log("Process Notification : "+key)
+    iEN.log("_filter : "+NObj[key]["_filter"])
+    filtercheck=iEN.evaluateFilter({"filter":NObj[key]["_filter"],"dataObj":vObj.vdata,"evaluate":true})        
+    if(filtercheck.status=="unsuccess")
+    {
+      iEN.log("Error while evaluating filter : "+filtercheck.error)  
+      return {"status":"unsuccess","msg":"","error":filtercheck.error};
+    }
+    if(!filtercheck.filterResp)
+    {
+      iEN.log("Filter Response : "+filtercheck.filterResp);
+      delete NObj[key] 
+      continue;
+    }
+    
+    if(NObj[key]["delivery_type"]=="sms")
+      continue;
+    
+    
+    iEN.log("Start report generation if present.Report Count : "+NObj[key]["_repcount"]);
+    //loop through the reports to generate in case of dynamic
+    for(var i=0,len=NObj[key]["_repcount"];i<len;i++)
+    {
+      if(repObj[NObj[key]["_rep"+(i+1)]])
+        continue;
+      
+      repQry="SELECT PARAMNAME,PARAMVALUE FROM iwz_report_defn WHERE repid='"+NObj[key]["_rep"+(i+1)]+"'";
+      repQry=SQLResultset(repQry);
+      if(repQry.recordcount==0)
+      {
+        iEN.log("Report "+NObj[key]["_rep"+(i+1)]+" not defined.");
+        return {"status":"unsuccess","msg":"","error":"Report "+NObj[key]["_rep"+(i+1)]+" not configured."};
+      }
+      repObj[NObj[key]["_rep"+(i+1)]]={}; 
+      for(var j=0,len1=repQry.recordcount;j<len1;j++)
+        repObj[NObj[key]["_rep"+(i+1)]][repQry.data[j][0]]=repQry.data[j][1];
+  
+      if(repObj[NObj[key]["_rep"+(i+1)]]["_type"]=="dynamic")
+      {
+        iEN.log("Report "+NObj[key]["_rep"+(i+1)]+" is dynamic.Generate it..");
+        repObj[NObj[key]["_rep"+(i+1)]]["reportpath"]=repObj.reportpath;
+        repObj[NObj[key]["_rep"+(i+1)]]["seqno"]=vObj.seqno;
+        response=iEN.generateReport(repObj[NObj[key]["_rep"+(i+1)]],vObj.vdata);
+        if(response.status=="success")
+        {
+          repObj[NObj[key]["_rep"+(i+1)]]["_filepath"]=response.path;
+          iEN.log("Report generated successfully at path : "+response.path);
+        }
+        else
+        {
+          iEN.log("Error while generating report : "+repObj[NObj[key]["_rep"+(i+1)]]["repid"]+".Error : "+response.error)
+          loopbreak=true;
+          break;
+        }  
+      }
+      else
+      {
+         iEN.log("Report "+NObj[key]["_rep"+(i+1)]+" is static : "+repObj[NObj[key]["_rep"+(i+1)]]["_filepath"]);
+         response=iEN.evaluateFilter({"filter":repObj[NObj[key]["_rep"+(i+1)]]["_filepath"],"dataObj":vObj.vdata,"evaluate":false})      
+         if(response.status=="unsuccess")
+        {
+           iEN.log("Evaluate filepath "+repObj[NObj[key]["_rep"+(i+1)]]["_filepath"]+" : "+response.error);
+           return {"status":"unsuccess","msg":"","error":response.error}; 
+        }
+        repObj[NObj[key]["_rep"+(i+1)]]["_filepath"]=response.filterResp;
+        response=iwebz.chkFileExists(repObj[NObj[key]["_rep"+(i+1)]]["_filepath"]);
+        iEN.log("status : "+response.status);
+        if(response.status=="unsuccess")
+        {
+          iEN.log("Check file exists : "+NObj[key]["_rep"+(i+1)]["_filepath"]+" : "+response.error);
+          return {"status":"unsuccess","msg":"","error":response.error};
+        }  
+      }
+    }
+    
+    if(loopbreak)
+      return {"status":"unsuccess","msg":"","error":"Error while generating report.Further processing stopped"};
+
+//    NObj[key].process=true;        
+  }
+  return {"status":"success","msg":"","error":"","data":{"NObj":NObj,"dataObj":vObj.vdata,"repObj":repObj}};
+}
+
+iEN.generateReport=function(vObj,dataObj)
+{
+  var passResp;
+  var user_pass="";
+  var owner_pass="";
+  var response,paramdata,repname,serverdate;
+  var vSql="SELECT repid, rep_name, repxml, onload,  parameter, rep_parameter, rep_dateparameter, multi_data_set FROM iwz_reports_config WHERE repid='"+vObj.repid+"' AND deleted='N'";
+  iEN.log("vSql "+vSql);
+  vSql=SQLStore(vSql);
+  vSql=eval('('+vSql+')');
+  if(vSql.recordcount=="0")
+  {
+    iEN.log("Report "+vObj.repid+" not configured.");
+    return {"status":"unsuccess","msg":"","error":"Report "+vObj.repid+" not configured."};
+  }
+  
+  iEN.log("Create report paramdata.Report : "+vObj.repid);
+  response=iEN.createReportParamdata({"reportsconfig":vSql.data[0],"vdata":dataObj,"repMap":vObj})
+  if(response.status=="unsuccess")
+  {
+    iEN.log("Error while generating paramdata.Error : "+response.error);
+    return {"status":"unsuccess","msg":"","error":response.error};
+  }
+  paramdata=response.paramdata;
+
+  //evaluate report password if password proctected
+  vObj._pdf_protected=vObj._pdf_protected||"N";
+  if(vObj._pdf_protected=="Y")
+  {
+    if(!vObj._user_password)
+      return {"status":"unsuccess","msg":"","error":"Password not configured for the pdf"};
+    
+    if(!vObj._owner_password)
+      vObj._owner_password=vObj._user_password;
+      
+    passResp=iEN.evaluateFilter({"filter":'"u_password":"'+vObj._user_password+'","o_password":"'+vObj._owner_password+'"',"dataObj":dataObj,"evaluate":false})
+    if(passResp.status=="unsuccess")
+    {
+      iEN.log("Error while evaluating password: "+passResp.error)  
+      return {"status":"unsuccess","msg":"","error":passResp.error};
+    }
+    passResp.filterResp="{"+passResp.filterResp+"}"
+    iEN.log("passResp.filterResp : "+passResp.filterResp)
+    try
+    {
+      passResp.filterResp=eval('('+passResp.filterResp+')');
+    }      
+    catch(error)
+    {
+      return {"status":"unsuccess","msg":"","error":"Error while evaluating password :"+passResp.filterResp};
+    }
+    user_pass=passResp.filterResp.u_password;
+    owner_pass=passResp.filterResp.o_password;
+    if(owner_pass=="")
+      owner_pass=user_pass;
+  }
+  iEN.log("Password evaluated : "+user_pass+" :: "+owner_pass)
+  
+  iEN.log("Evaluate report name..."+vObj._repname);  
+  response=iEN.evaluateReportName({"vdata":dataObj,"org_rep_name":vSql.data[0].rep_name,"_repname":vObj._repname});
+  if(response.status=="unsuccess")
+  {
+    iEN.log("Error while evaluating report name "+vObj._repname+".Error : "+response.error);
+    return {"status":"unsuccess","msg":"","error":"Error while evaluating report name "+vObj._repname+".Error : "+response.error};
+  }    
+  iEN.log("Evaluated report name :"+response.reportname);
+  rep_obj={_logfilename:"",rep_id:vObj.repid,rep_path:vObj.reportpath,rep_filename:response.reportname,rep_name:vSql.data[0].rep_name,repxml:vSql.data[0].repxml,onload:vSql.data[0].onload,parameter:vSql.data[0].parameter,searchparams:paramdata,multi_data_set:vSql.data[0].multi_data_set,password:user_pass,opassword:owner_pass,_pp_rep_pass_check:vObj._pdf_protected}
+  iEN.log("Process report....");
+  reposnse=iwebz.generateBirtReport(rep_obj,vObj._reptype);
+  if(reposnse.status=="success")
+  {
+    iEN.log("Report generated successfully.Filelist :");
+    return {"status":"success","msg":"","error":"","path":reposnse.filelist.filenames.join(",")};
+  }
+  else
+  {
+    iEN.log("Error while processing report.Error :"+reposnse.error);
+    return {"status":"unsuccess","msg":"","error":reposnse.error};
+  }
+}
+
+/**
+ *@event      iEN.createReportParamdata.
+ *@desc       Create report paramdata
+ *@author     Mohini
+ *@dated      10-11-2014 12:22:28 PM
+ *@return     return paramdata
+**/
+iEN.createReportParamdata=function(vObj)
+{
+  var rep_fieldnames,rep_datefieldnames,rep_paramdata,act_paramdata,evaluated_res;
+  var rep_data=[]; 
+  var rep_fields=[];
+  try
+  {
+    rep_fieldnames=vObj.reportsconfig.rep_parameter||'';
+    rep_datefieldnames=vObj.reportsconfig.rep_dateparameter||'';
+    
+    if(rep_fieldnames) rep_fieldnames=rep_fieldnames.split(',');
+    else rep_fieldnames=[]
+     
+    if(rep_datefieldnames)    rep_datefieldnames=rep_datefieldnames.split(',');
+    else rep_datefieldnames=[]
+
+    //create a paramdata template
+    rep_paramdata='';
+    rep_paramdata+='"fieldnames":[';
+
+    //loop through the configured report parameter and append to the template
+    for(var i=0,len=rep_fieldnames.length;i<len;i++)
+    {
+      rep_fields[rep_fields.length]='"'+rep_fieldnames[i]+'"';
+      if(vObj.repMap['f_'+rep_fieldnames[i]])
+          rep_data[rep_data.length]='"'+rep_fieldnames[i]+'":"'+vObj.repMap['f_'+rep_fieldnames[i]]+'"';
+      else
+         return {"status":"unsuccess","msg":"","error":"Error while creating paramdata"};     
+    }
+    rep_paramdata+=rep_fields.join(',')+'],';
+    rep_fields=[];
+    
+    rep_paramdata+='"datefieldnames":[';
+    //loop through the configured report date parameter and append to the template
+    for(var i=0,len=rep_datefieldnames.length;i<len;i++)
+    {
+      rep_fields[rep_fields.length]='"'+rep_datefieldnames[i]+'"';
+      if(vObj.repMap['f_'+rep_datefieldnames[i]])
+          rep_data[rep_data.length]='"'+rep_datefieldnames[i]+'":"'+vObj.repMap['f_'+rep_datefieldnames[i]]+'"';
+    }
+    rep_paramdata+=rep_fields.join(',')+']';
+    rep_data=rep_data.join(',').replace("'","\"","\g") 
+    rep_data=""+rep_data+"";
+
+    //Evaluate paramdata
+    evaluated_res=iEN.evalExp(rep_data,vObj.vdata);
+    if(evaluated_res.status=="unsuccess")
+    {
+      iEN.log("Error while evaluating report paramdata:"+evaluated_res.error);
+      return {"status":"unsuccess","msg":"","error":"Error while evaluating report paramdata"};
+    }
+    else
+       evaluated_res=evaluated_res.exp;
+    
+    //eval the functions in report paramdata  template    
+    iEN.log("Evaluated Expression - "+evaluated_res);   
+    evaluated_res=iEN.evalExpressions(evaluated_res);
+    if(evaluated_res.status=="unsuccess")
+    {
+      iEN.log("Error occurred while evaluating paramdata : "+evaluated_res.error);   
+      return {"status":"unsuccess","msg":"","error":"Error occurred while evaluating paramdata :"+evaluated_res.error};
+    }
+    else
+       evaluated_res=evaluated_res.exp;
+    
+    //create report paramdata
+    act_paramdata='{'+rep_paramdata+','+evaluated_res+'}';
+    iEN.log("Report paramdata after evaluation : "+act_paramdata);
+    try
+    {
+      act_paramdata=eval('('+act_paramdata+')');
+    }
+    catch(error)
+    { 
+      iEN.log("Error while evaluating report paramdata.");
+      return {"status":"unsuccess","msg":"","error":"Error while evaluating report paramdata."};
+    }
+    return {"status":"success","msg":"","error":"","paramdata":act_paramdata} 
+  }
+  catch(error)
+  {
+    iEN.log("Error while processing report paramdata : "+error);
+    return {"status":"unsuccess","msg":"","error":"Error while creating report paramdata."+error} 
+  } 
+}
+
+
+/**
+ *@event      iEN.evalExp.
+ *@desc       evaluate expression
+ *@author     Mohini
+ *@dated      10-11-2014 5:21:14 PM
+ *@param      aStr{String} - expression
+ *@param      o{object} - data
+ *@return     evaluated expression
+**/
+iEN.evalExp=function(aStr,o)
+{
+  iEN.log("aStr : "+aStr);
+  var regExp= /(\[[{}a-zA-Z0-9=\s_\.\(\)\-,'"]*\])/g;
+  var result =aStr.match(regExp)||[];
+  var expression=''
+  var exprVal='';
+  var undef_fields=[]
+  for(var i=0,len=result.length;i<len;i++)
+  {
+    expression =result[i].replace("[","").replace("]","");
+    exprVal=o[expression]
+    if(exprVal==undefined)
+      undef_fields[undef_fields.length]=""+expression +"";     
+    aStr = aStr.replace(result[i],exprVal);
+  }
+  //aStr=aStr.replace("\\","/","\g")
+  if(undef_fields.length!=0)
+    return {"status":"unsuccess","msg":"","error":undef_fields.join(","),"exp":aStr}
+  return {"status":"success","msg":"","exp":aStr}
+} 
+
+
+/**
+ *@event      iEN.evalExpressions.
+ *@desc       Eval Expression
+ *@author     Mohini
+ *@dated      10-11-2014 5:22:31 PM
+ *@param      aStr{String} - expression
+ *@return     Return Data Desc
+**/
+iEN.evalExpressions=function(aStr)
+{
+  var eval_err=[]
+  regExp = new RegExp("{([^}]*)}","gi");
+  var result = aStr.match(regExp);
+  var expression="";
+  var exprStr="";
+  if (result==null) return {"status":"success","msg":"","error":"","exp":aStr};
+  for (idx=0,len1=result.length;idx<len1;idx++)
+  {
+    exprStr =result[idx];
+    expression =exprStr.replace("{","").replace("}","");
+    try
+    { 
+      replaceStr = eval(expression);
+    }
+    catch (e)
+    { 
+      eval_err[eval_err.length]=""+expression+"";
+      replaceStr = 'Error evaluating expression : '+ expression + '-'+e;
+    }
+    aStr = aStr.replace(exprStr,replaceStr);
+  }
+  if(eval_err.length!=0)
+      return {"status":"unsuccess","msg":"","error":""+eval_err.join(','),"exp":aStr}
+  else      
+      return {"status":"success","msg":"","error":"","exp":aStr}
+}
+
+/**
+ *@event      iEN.evaluateReportName.
+ *@desc       Evaluate Report Name
+ *@author     Mohini
+ *@dated      10-11-2014 6:04:46 PM
+ *@param      vObj {Object} 
+**/
+iEN.evaluateReportName=function(vObj)
+{
+  var rep_name=""
+  var serverdate=getServerDateTime().replace("-","","\g").replace(":","","\g").replace(" ","","\g");
+  
+  if(!vObj._repname)
+  {
+   rep_name=vObj.org_rep_name+"_"+serverdate;
+   return {"status":"success","msg":"","error":"","reportname":rep_name};
+  }
+    
+  rep_name=vObj._repname;
+  rep_name=iEN.evalExp(""+rep_name+"",vObj.vdata);
+
+  //if the evaluated report name is same as before append the serial no to it
+  if(rep_name.status=="unsuccess")
+  {
+    iEN.log("Error while evaluating report name -"+rep_name.error+" for report "+rep_name);
+    return {"status":"unsuccess","msg":"","error":"Error while evaluating report name -"+rep_name.error+" for report "+rep_name};
+  }
+  else
+  {
+    if(vObj._repname==rep_name.exp)
+       rep_name=vObj._repname+"_"+serverdate;
+    else
+       rep_name=rep_name.exp;
+  }
+  rep_name=iEN.evalExpressions(rep_name);
+  iEN.log("Report name after evaluating :  "+rep_name);
+  if(rep_name.status=="unsuccess")
+  {
+    iEN.log("Error while evaluling report name : "+rep_name.error);
+    return {"status":"unsuccess","msg":"","error":"Error while evaluling report name : "+rep_name.error};
+  }
+  else
+    rep_name=rep_name.exp;
+   
+  return {"status":"success","msg":"","error":"","reportname":rep_name};    
+}
+
+/**
+ *@event      iEN.deliverNotification.
+ *@desc       Mail Notification
+ *@author     Mohini
+ *@dated      11-11-2014 3:56:37 PM
+ *@param      Obj{object} - {NObj:notification object,dataObj:data,repObj:report object}
+ *@return     Status
+**/
+iEN.deliverNotification=function(pObj)
+{
+  pObj=pObj||{}
+  var errFlag=false;
+  var NObj={}
+  var emailObj={}
+  var emailArr=[];
+  var emailtpl=""
+  var filelist=[]
+  var mail_refno=[]
+  var response,filetext,msg_from,vsql;
+  if(!pObj.NObj || !pObj.repObj)
+    return {"status":"unsuccess","msg":"","error":"Insufficient data to process mail"};
+ 
+  msg_from=getParameter('mail-userName');
+  if(msg_from=="")
+    return {"status":"unsuccess","msg":"","error":"Email parameter 'msg-from ' not configured."};
+   
+  NObj=pObj.NObj  
+  iEN.log("Process email notification....");
+  for(var key in NObj)  
+  {
+    iEN.log("Notification : "+key);
+    if(NObj[key].delivery_type=="email")
+    {
+      response=iEN.processEmail({"NE":NObj[key],"repObj":pObj.repObj,"dataObj":pObj.dataObj})
+	  if(response.status=="unsuccess")
+      {
+        iEN.log("Error while processing emailing data.Error : "+response.error)
+        return {"status":"unsuccess","msg":"","error":"Error while processing emailing data."};
+      }
+      response.deliveryObj.msg_type="MAL";
+      response.deliveryObj.msg_from=msg_from;  
+      emailArr[emailArr.length]=response.deliveryObj;
+    }
+    else if(NObj[key].delivery_type=="sms")
+    {
+      response=iEN.processSMS({"NE":NObj[key],"dataObj":pObj.dataObj})
+      if(response.status=="unsuccess")
+      {
+        iEN.log("Error while processing emailing data.Error : "+response.error)
+        return {"status":"unsuccess","msg":"","error":"Error while processing emailing data."};
+      }
+      response.smsObj.msg_type="SMS";  
+      emailArr[emailArr.length]=response.smsObj;
+    }
+  }
+  
+  for(var indx=0,len=emailArr.length;indx<len;indx++)
+  {
+    emailObj={}
+    emailObj.to = emailArr[indx].e_to;
+    emailObj.cc = emailArr[indx].e_cc||"";
+    emailObj.bcc = emailArr[indx].e_bcc||"";
+    emailObj.msg_type =emailArr[indx].msg_type||"MAL";
+    emailObj.msg_files =emailArr[indx]["_filelist"]||"";
+    emailObj.msg_constraint="ASAP";
+    emailObj.msg_status="UAU";
+    emailObj.tbs="N";
+    emailObj.prefdatetime=getServerDate();
+    emailObj.msg_sub=emailArr[indx].e_subject||"";
+    emailObj.msg_body=emailArr[indx].e_body
+    emailObj.msg_from=emailArr[indx].msg_from||"";
+    emailObj.unauth=true;
+	iEN.log("Before ibox.putMailReq $$$$$$$ : ")
+    chkstatus = ibox.putMailReq(emailObj);
+    iEN.log("After ibox.putMailReq $$$$$$$chkstatus.status : "+chkstatus.status)
+    if(chkstatus.status=="success")
+    {
+      mail_refno[mail_refno.length]=chkstatus.ref_no;
+      iEN.log("Ref_no : "+chkstatus.ref_no)
+    }
+    else
+    {
+      iEN.log(" Error while inserting in outbox :  "+chkstatus.error);
+  	  vsql="begin "+makeAudit({
+  									    issql:true
+  									    ,tab:"iwz_outbox"
+  									    ,opr:"delete"
+  									    ,res:"rollback"
+  									    ,user:userObj.user_id
+  									    ,sqlwhr:" msg_refno in ('"+mail_refno.join("','")+"')"
+  									  })+";"; 
+      vsql+="delete from iwz_outbox where msg_refno in ('"+mail_refno.join("','")+"');end;"
+      execSQL(vsql);       
+      return {"status":"unsuccess","msg":"","error":"Error while processing email data."};
+    }     
+  }
+  vsql="begin update iwz_outbox set msg_status='AUT' where msg_refno in ('"+mail_refno.join("','")+"');"
+	vsql+= makeAudit(
+									  {
+									    issql:true
+									    ,tab:"iwz_outbox"
+									    ,opr:"modify"
+									    ,res:"Update the msg status"
+									    ,user:userObj.user_id
+									    ,sqlwhr:" msg_refno in ('"+mail_refno.join("','")+"')"
+									  })+";end;"; 
+  execSQL(vsql);
+  return {"status":"success","msg":"Notification processed successfully.","error":""};
+}
+
+iEN.processEmail=function(vObj)
+{
+  var NE=vObj.NE||{};
+  var response,filetext,emailtpl,fileResp;
+  var filelist=[]
+  emailtpl='"e_bcc":"'+NE.e_bcc+'","e_cc":"'+NE.e_cc+'","e_subject":"'+NE.e_subject+'","_level2":"'+NE._level2+'","e_to":"'+NE.e_to+'"'
+  response=iEN.evaluateDeliveryParam(emailtpl,vObj.dataObj);
+  if(response.status=="unsuccess")
+  {
+    iEN.log("Error while evaluating email parameters.Error : "+response.error);
+    return {"status":"unsuccess","msg":"","error":"Error while evaluating email parameters"};
+  }
+  filelist=[]
+  for(var j=0;j<NE["_repcount"];j++)
+    filelist[filelist.length]=vObj.repObj[NE["_rep"+(j+1)]]["_filepath"];
+  response.deliveryObj["_filelist"]=filelist.join(",");
+
+  filetext=""+NE.e_body||"";
+  filetext =""+filetext.replace("\r"," ","\g").replace("\n"," ","\g").replace('"','\\\"',"\g");  
+  evaluated_res=iEN.evalExp(filetext,vObj.dataObj);
+  if(evaluated_res.status=="unsuccess")
+  {
+    iEN.log("Error occurred : "+evaluated_res.error);
+    return {"status":"unsuccess","msg":"","error":"Error while evaluating filter."};
+  }
+  else
+    evaluated_res=evaluated_res.exp;
+    
+  //eval the email template
+  evaluated_res=iEN.evalExpressions(evaluated_res);
+  if(evaluated_res.status=="unsuccess")
+  {
+    iEN.log("Error occurred while evaluating expression : "+evaluated_res.error);
+    return {"status":"unsuccess","msg":"","error":"Error occurred while evaluating expression "};
+  }
+  else
+    evaluated_res=evaluated_res.exp;
+
+  iEN.log("Evaluated expression - "+evaluated_res);
+  response.deliveryObj.e_body=evaluated_res;
+  return {"status":"success","msg":"","error":"","deliveryObj":response.deliveryObj};
+}
+
+
+
+/**
+ *@event      iEN.processSMS.
+ *@desc       Process sms data
+ *@author     Mohini
+ *@dated      12-11-2014 7:23:51 PM
+**/
+iEN.processSMS=function(vObj)
+{
+  var NE=vObj.NE||{};
+  var smsStr='"e_to":"'+NE.s_mobilenumber+'","e_body":"'+NE.s_msg+'"'
+  response=iEN.evaluateDeliveryParam(smsStr,vObj.dataObj);
+  if(response.status=="unsuccess")
+  {
+    iEN.log("Error while evaluating sms parameters.Error : "+response.error);
+    return {"status":"unsuccess","msg":"","error":"Error while evaluating sms parameters"};
+  }
+  return {"status":"success","msg":"","error":"","smsObj":response.deliveryObj};
+}
+
+/**
+ *@event      iEN.evaluateFilter.
+ *@desc       Evaluate filter
+ *@author     Mohini
+ *@dated      12-11-2014 7:24:32 PM
+ *@return     Return Data Desc
+**/
+iEN.evaluateFilter=function(vObj)
+{
+  var filter;
+//  var response=iEN.evaluateDeliveryParam(vObj.filter,vObj.dataObj);
+  var evaluated_res=iEN.evalExp(vObj.filter,vObj.dataObj);
+  if(evaluated_res.status=="unsuccess")
+  {
+    iEN.log("Error occurred : "+evaluated_res.error);
+    return {"status":"unsuccess","msg":"","error":"Error while evaluating filter."};
+  }
+  else
+    evaluated_res=evaluated_res.exp;
+    
+   //eval the email template
+  evaluated_res=iEN.evalExpressions(evaluated_res);
+  if(evaluated_res.status=="unsuccess")
+  {
+    iEN.log("Error occurred while evaluating expression : "+evaluated_res.error);
+    return {"status":"unsuccess","msg":"","error":"Error occurred while evaluating expression "};
+  }
+  else
+    evaluated_res=evaluated_res.exp;
+  
+  iEN.log("Evaled expression - "+evaluated_res);
+  
+  if(!vObj.evaluate)
+    return {"status":"success","msg":"","error":"","filterResp":evaluated_res};
+    
+  try
+  {
+    filtercheck=eval('('+evaluated_res+')');
+  }
+  catch(error)
+  {
+    iEN.log("Error while evaluating filter "+filter+".Error : "+error);
+    return {"status":"unsuccess","msg":"","error":"Error while evaluating filter"};
+  }
+  return {"status":"success","msg":"","error":"","filterResp":filtercheck};
+}
+/**
+ *@event      iEN.evaluateDeliveryParam.
+ *@desc       Evaluate email parameters
+ *@author     Mohini
+ *@dated      11-11-2014 4:17:48 PM
+ *@param      mailObj{String} - param Description
+ *@param      rdataset{Object} - param Description
+ *@return     status
+**/
+iEN.evaluateDeliveryParam=function(mailObj,rdataset)
+{
+  var deliveryObj,filetext;
+  var evaluated_res=iEN.evalExp(mailObj,rdataset);
+  if(evaluated_res.status=="unsuccess")
+  {
+    iEN.log("Error occurred : "+evaluated_res.error);
+    return {"status":"unsuccess","msg":"","error":"Error while evaluating email object."};
+  }
+  else
+    evaluated_res=evaluated_res.exp;
+    
+   //eval the email template
+  evaluated_res=iEN.evalExpressions(evaluated_res);
+  if(evaluated_res.status=="unsuccess")
+  {
+    iEN.log("Error occurred while evaluating expression : "+evaluated_res.error);
+    return {"status":"unsuccess","msg":"","error":"Error occurred while evaluating expression "};
+  }
+  else
+    evaluated_res=evaluated_res.exp;
+  //create email object
+  deliveryObj='{'+evaluated_res+'}';
+  iEN.log("Mail Delivery Object - "+deliveryObj);
+  try
+  {
+    deliveryObj=eval('('+deliveryObj+')');
+  }  
+  catch(error)
+  {
+    return {"status":"unsuccess","msg":"","error":"Error while evaluating mail delivery parameters."};
+  }
+  return {"status":"success","msg":"","error":"","deliveryObj":deliveryObj};
+}
+
+function getNotifyBccEmail()
+{
+  return "mohinimemane@credenceanalytics.com"  
+}
+function getNotifyCCEmail()
+{
+return "mohinimemane@credenceanalytics.com"
+}
+function getNotifySubject()
+{
+return "mohinimemane@credenceanalytics.com"
+}
+function getNotifytoEmail()
+{
+return "mohinimemane@credenceanalytics.com"
+}
+// 
+// function getNotifyBccEmail1()
+// {
+//   return "mohinimemane@credenceanalytics.com"  
+// }
+// function getNotifyCCEmail1()
+// {
+// return "mohinimemane@credenceanalytics.com"
+// }
+// function getNotifySubject1()
+// {
+// return "mohinimemane@credenceanalytics.com"
+// }
+function getNotifytoEmail1()
+{
+return "mohinimemane@credenceanalytics.com"
+}
+
+function GetMobilenumber()
+{
+  return "8879081236"
+}
+function getsmsMessage()
+{
+  return "hello mohini ...."
+}

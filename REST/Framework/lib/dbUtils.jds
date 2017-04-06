@@ -1,0 +1,1194 @@
+var mapDataTypes = new Object();
+var mapDataTypes = new Object();
+mapDataTypes["java.math.BigDecimal"] =  "double";
+mapDataTypes["java.lang.String"] =  "String";
+mapDataTypes["java.sql.Timestamp"]= "Date";
+mapDataTypes["java.lang.Long"]= "long";
+mapDataTypes["java.lang.Double"] =  "double";
+mapDataTypes["java.sql.Date"]= "Date";
+mapDataTypes["java.lang.Integer"]= "Integer";
+
+//Added by Varsha on 1st Nov 2014
+function LOG_DB_UTILS(filetext)
+{
+//	appendFileText(serverPath+"/AllQueries_"+getServerDateHH()+"_"+userObj.userid+".txt","\n"+filetext);
+}
+
+
+function getConnection(isBatch)
+{
+	if(isBatch==undefined || isBatch==null)
+	{
+		isBatch=false;
+	}
+ 	try
+ 		{
+	 
+	 		   //  appendFileText(serverPath+"/Append.txt","\n with JNDI1111 "+jndiName);
+	 		 //      appendFileText(serverPath+"/Append.txt","with JNDI"+jndi);
+ 	    		var ctxt = new javax.naming.InitialContext();
+  				var ds = ctxt.lookup("java:"+jndiName+"");
+ 				var con = ds.getConnection();                
+ 				return con;				
+		
+ 	   }
+ 		catch(e)
+ 		{
+	 		
+ 			appendFileText(serverPath+"/sqlLog.txt",""+e)	;
+ 		}		
+}
+
+
+function execSQL(SQLstr,isBatch)
+{ 
+	LOG_DB_UTILS("execSQL Query : "+SQLstr);
+    result = '';
+    SQLstr=SQLstr||""
+    if(SQLstr=="")
+      return '{"status":"unsuccess","msg":"","error":"Blank SQL statement.",recordcount:0}';
+      
+	var con = "";  
+	try{
+			con = getConnection(isBatch);
+			var logLabel="";
+			var sysdb_esql=dbutil.execSQL(iwebz.globalDateFormat,SQLstr,con,logLabel);
+			//appendFileText(serverPath+"/Unitlog.txt","\n output : "+sysdb_esql);
+			return sysdb_esql;
+	}
+	catch( e )
+	{
+		return '{"status":"unsuccess","msg":"","error":"Exception occurred.'+e.toString()+'",recordcount:0}';
+	}
+	finally{
+		if(con!=null){
+			log.debug("********* Closing SQL connection ************");
+			try
+			{con.close();}
+			catch( e )
+			{ log.info("########### Exception in closing SQL connection ######### "+e.toString()); }
+			con = null;
+		}
+	}
+    
+		// var stmt=con.createStatement();
+		// sessionquery="alter session set nls_date_format='"+iwebz.globalDateFormat+"'";
+		// try 
+	// { 	stmt.executeUpdate(sessionquery);
+		// row = stmt.executeUpdate(SQLstr);
+		// //return row;
+// //   		stmt.close();
+// //   		con.close();
+		// result = '{ status:"success",error:"",recordcount:'+ row +' }';      
+		// stmt.close();
+    // }
+    // catch(e)
+    // {
+		// //appendFileText(serverPath+"/Durgesh.txt","\n SQLstr :: "+SQLstr);
+		// result = '{ status:"unsuccess",error:"'+ e.toString().replace("\"","","\g").replace("\n","","\g") +'",recordcount:0}';       
+    // }
+
+     // result = result.replace("\r\n"," ","\g");
+   	// //appendFileText(serverPath+"/sqlLog.txt","\nExec Function--Label:--"+logLabel+"---Start Time:--"+logStartTime+"--End Time:--"+getServerDateTime()+"--"+userid+"-->"+SQLstr)	
+   	// //appendFileText(serverPath+"/sqlLog.txt","\nExec Function-Start Time:-"+logStartTime+"-End Time:-"+getServerDateTime()+"-"+userid+"->"+SQLstr)	
+    // return result;
+}
+
+function execSQLResultset(SQLstr,isBatch)
+{ 
+	
+ 	var result = execSQL(SQLstr,isBatch);
+ 	try
+ 	{
+ 	return eval('(' + result + ')');
+	}
+	catch(e)
+	{
+		return {"status":"unsuccess",error:"Error while executing SQL"}	
+	}
+// // 	if(result.indexOf("ORA-01438") >= 0)
+// // 	{
+// // 		result = '{ status : "unsuccess" }';
+// // 	}
+// var con = getConnection();
+//   	return eval('(' + dbutil.execSQL(SQLstr,con,logLabel) + ')');
+  	
+}
+
+function SQLStore(SQLstr,isBatch)
+{
+  SQLstr=SQLstr||""
+  if(SQLstr=="")
+    return '{"status":"unsuccess","msg":"","error":"Blank SQL statement.",recordcount:0}';
+    
+   var con = getConnection(isBatch);
+   var sysdb_sqstore=dbutil.SQLStore(iwebz.globalDateFormat,SQLstr,con,"NoLabel");
+   con.close();
+   con=null;
+   return sysdb_sqstore;
+}
+
+function SQL(SQLstr,isBatch)
+ {  
+    SQLstr=SQLstr||""
+    if(SQLstr=="")
+      return '{"status":"unsuccess","msg":"","error":"Blank SQL statement.",recordcount:0}';
+
+    var con = "";
+	try{
+			con = getConnection(isBatch);
+			var sys_db=dbutil.SQL(iwebz.globalDateFormat,SQLstr,con,"NoLabel");
+			return sys_db;
+	  }
+	  catch( e )
+	  {
+		  return '{"status":"unsuccess","msg":"","error":"Exception occurred.'+e.toString()+'",recordcount:0}';
+	  }
+	  finally{
+		  
+		  if(con!=null){
+			log.debug("********* Closing SQL connection ************");
+			try{con.close();}
+			catch( e ){log.error("########### Exception in closing SQL connection ######### "+e.toString());}
+			con = null;
+		  }
+	  }
+}
+
+function getPageWiseQuery(strSQL,iStartNo,iEndNo)
+{
+  strSQL=strSQL||""
+  if(strSQL=="")
+    return ""
+  
+	var vSql=new Array();
+	vSql[vSql.length]=" SELECT * FROM( "
+  	vSql[vSql.length]=" SELECT a.* , ";
+  	vSql[vSql.length]=" Row_Number() over(ORDER BY 1) sr_no, ";
+  	vSql[vSql.length]=" count(1) over(ORDER BY 1) rc_internal "; 
+  	vSql[vSql.length]=" FROM ( ";
+   	vSql[vSql.length]=strSQL;
+   	vSql[vSql.length]=")a )";
+   	vSql[vSql.length]="WHERE sr_no >="+ _encode(iStartNo)+" AND sr_no < = "+ _encode(iEndNo);	
+// 	 var str_pw_in_sql="select d1.*,b1.* from ";
+// 	 str_pw_in_sql=str_pw_in_sql+"( ";
+// 	 str_pw_in_sql=str_pw_in_sql+"select c1.* from ( ";
+// 	 str_pw_in_sql=str_pw_in_sql+"select a1.*,Row_Number() over(ORDER BY 1) sr_no from ";
+// 	 str_pw_in_sql=str_pw_in_sql+"("+strSQL+") a1) c1 ";
+// 	 str_pw_in_sql=str_pw_in_sql+"where c1.Sr_No>="+iStartNo+" and c1.Sr_No<="+iEndNo+" ";
+// 	str_pw_in_sql=str_pw_in_sql+") d1, ";
+// 	 str_pw_in_sql=str_pw_in_sql+"(select count(*) as rc_internal from ";
+// 	 str_pw_in_sql=str_pw_in_sql+"( ";
+// 	 str_pw_in_sql=str_pw_in_sql+" "+strSQL+" ";
+// 	 str_pw_in_sql=str_pw_in_sql+")) b1 ";
+// 	return str_pw_in_sql;
+	return vSql.join("");
+}
+
+
+
+
+
+function SQLResultset(SQLstr,isBatch)
+{ 
+  	result = SQL(SQLstr,isBatch);
+  try
+  { 
+	  return eval('(' + result + ')');
+  }
+  catch(e)
+  { 
+	var result = '{status : "unsucess" ,error:"Error ocurred' + e.toString().replace("\"","","\g").replace("\n","","\g") + '"}';
+    return eval('(' + result + ')');
+  }
+}
+function encodeEscapeCharacters(vString)
+{	//Escape function does not encode these four character @ / + - @ --> ]![	// / --> !][!	// + --> ]!][	// - --> ![]!
+	var vTemp = (vString+"").replace(/(@)/g,']![').replace(/(\/)/g,'!][!').replace(/(\+)/g,']!][').replace(/(\-)/g,'![]!');
+	return vTemp;
+}
+function decodeEscapeCharacters(vString)
+{	//Escape function does not encode these four character @ / + - /+-
+	var vTemp = (vString+"").replace(/(\]!\[)/g,'@').replace(/(!\]\[!)/g,'\/').replace(/(\]!\]\[)/g,'\+').replace(/(!\[\]!)/g,'\-');
+	return vTemp;
+}
+
+function getLookUpList(id, tableName, nameField, codeField, SQL,isdata)
+{ 
+	//appendFileText(serverPath+"/log/iDown.txt","\n Inside getDownDetails1 "+SQL); 
+	isdata=isdata||false
+	var sqlString=""
+	if(SQL == undefined)
+	{
+		sqlString = "select distinct " + _encode(nameField) + " , " + _encode(codeField) + " from " + _encode(tableName) + ' where rownum<1000 order by ' + _encode(tableName)+ "." +_encode(nameField);
+	}
+	else
+	{
+		sqlString = SQL;
+	}	
+	//appendFileText(serverPath+"/vikas.txt","\n  query:"+sqlString)	;
+  var resultSet = SQLResultset(sqlString);
+  var vRow = resultSet.recordcount;
+  var resultStr = "";
+  for( var vCnt = 0 ; vCnt < vRow ; vCnt++)
+  {  resultSet.recordno = vCnt;
+     resultStr+="|||" + resultSet.fieldbyname(nameField) + "=="+ resultSet.fieldbyname(codeField);
+  };
+  resultStr += "|||";
+  if(isdata)
+    return resultStr ;
+  
+  resultStr = '<div id="' + id + '" style="position:absolute; top:1%; width:50px; height: 10%; display:none; overflow:auto"> '+ resultStr + '</div>'; 
+  //appendFileText(serverPath+"/vikas.txt","\n  resultStr : "+resultStr);
+  return resultStr;
+}
+
+ function newSQLResultset(SQLstr)
+ {   
+ 
+    var con = getConnection();
+	var stmt=con.createStatement();
+	sessionquery="alter session set nls_date_format='"+iwebz.globalDateFormat+"'";	
+     try
+     {
+       	stmt.executeUpdate(sessionquery);
+   		var rs = stmt.executeQuery(SQLstr);
+       	var rsmd  = rs.getMetaData();
+ 		var totalcol = rsmd.getColumnCount();
+ 	    var result =createdataset();
+	    var temp; 
+	    var fieldType;
+		var totalRow = 0;
+		var vFieldNames = "";
+		var JString = '';	  
+		  for(var j=1; j <= totalcol; j++) // Used to form the fields array containing the name of the fields
+		  {
+			    //temp = rsmd.getColumnLabel(j).toLowerCase()+"";
+			    //chk with viz vFieldNames += '"' + temp + '":' + (j-1); 
+			    result.fields[j-1]=rsmd.getColumnLabel(j).toLowerCase()+"";
+			    result[result.fields[j-1]]=j-1;
+			    result.columns[j-1]=rsmd.getColumnLabel(j);	    
+			    result.fieldtype[j-1]=mapDataTypes[rsmd.getColumnClassName(j)] ;
+			    result.fieldsize[j-1]=rsmd.getColumnDisplaySize(j);
+       }			     
+   	 var vDateFormat = iwebz.globalDateFormat ;
+       while (rs.next())
+       {
+	       		  result.data[totalRow]=[];
+         for (var i=1;i<=totalcol ;i++ )
+ 				{
+					if(rs.getString(i)== null)
+					{	temp = '';	}
+					else
+					{	temp = ""+rs.getString(i);}
+ 				  fieldType = result.fieldtype[i-1];
+ 				  if(fieldType == "String" )
+ 				  {
+ 					  temp = temp + "";
+ 					  temp = temp.replace(/(\[plus\])/g,"+");	
+ 					  temp = temp.replace(/(["\\])/g, '\\$1').replace(/\r/g, '').replace(/\n/g, '\\n');
+ 					  result.data[totalRow][i-1]=temp;
+ 					  //JString += '" eee' + temp + '"'; // if string then put the value inside double quots
+ 				  }
+ 				  else if(fieldType == "Date")
+ 				  {
+ 					  temp = formatDate(toDate(temp,'y-MM-dd kk:mm:ss'),vDateFormat);
+ 					  result.data[totalRow][i-1]=temp;
+ 					  //JString += '"' + formatDate(toDate(temp,'y-MM-dd kk:mm:ss'),vDateFormat) + '"';
+ 					  //JString += '"fff' + temp + '"';
+ 				  }
+ 				  else
+ 				  {
+ 					  result.data[totalRow][i-1]=temp;
+ 					  //JString += '"ggg'+temp +'"';// If the value is number than we should not put the value inside double quots						  
+ 				  }
+ 				}  
+ 			  totalRow++;
+       }
+       
+       result.fieldcount=totalcol;
+       result.recordcount=totalRow;
+      	rs.close();
+		stmt.close();
+    }
+ 	   catch(e)
+    {
+			JString = '{status:"unsuccess",error:"'+ e.toString().replace("\"","","\g").replace("\n","","\g") +'",recordcount:0}';
+    }
+    finally
+    {
+      	
+    	con.close();
+    	con=null;
+    }
+    return result;//SQLstr//+'  '+result.data.join(','); 
+ }
+
+
+function createdataset()
+{
+resultset={
+fieldtype: [],
+fieldsize: [],
+columns: [],
+fields: [],
+data:[],
+fieldbyname: function( vFN ){return this.data[this.recordno][eval("this['" + vFN + "']" )];}, 
+fieldname: function( vInd ){ return this.fields[vInd];},
+getfieldtype: function( vFN ){ return this.fieldtype[eval("this['" + vFN +  "']" )];},
+fieldvalue: function( vInd ){return this.data[this.recordno][vInd];},
+getfieldsize: function( vFN ){ return this.fieldsize[eval("this['" + vFN + "']" )];},
+fieldcount:0,
+recordcount:0,
+recordno:0}
+return resultset;
+}
+
+function execProc(obj)
+{  
+  if(!obj.proc_name)
+    return '{"status":"unsuccess","msg":"","error":"Procedure name cannot be blank."}';
+
+  LOG_DB_UTILS("execProc Query : "+obj.proc_name);
+    
+	var jstr="";
+	param_arr_outlen=0;
+	procname=obj.proc_name;//procedure name
+	param_arr = obj.proc_params;//in params 
+	param_arr_outlen = obj.proc_outparams;//out params count
+	var outparam_idx = param_arr.length +1;
+	var SQLstr="";
+	var param_str="";
+	var total_length = parseInt(param_arr_outlen) + param_arr.length; 
+	
+	for(var i=0;i<total_length;i++){param_str += '?,';}
+	SQLstr="{ call "+procname+"(" + param_str.substring(0,param_str.length-1) + ") }";
+	var status='';
+	result = '';
+    var con = getConnection();
+	try 
+	{
+		
+    	proc = con.prepareCall(SQLstr);
+			
+		for(var idx=0; idx<param_arr.length; idx++)
+		{
+			proc.setString((idx+1),param_arr[idx]);	
+		}
+     
+		if(param_arr_outlen != 0) 
+		{ 	
+    		for(temp=outparam_idx;temp<=total_length;temp++)
+    		{
+    			proc.registerOutParameter(temp, java.sql.Types.VARCHAR);
+    		 	//proc.registerOutParameter(3, java.sql.Types.VARCHAR);
+			}
+		}
+		
+  		proc.execute();		
+  		jstr= '{"status" : "success" }';
+  		if(param_arr_outlen != 0) 
+  		{
+  			var outarr=new Array();
+    		for(;outparam_idx<=total_length;outparam_idx++)
+    		{
+	    		outarr[outarr.length] = proc.getString(outparam_idx);
+			}
+			
+			jstr="";
+			for(var i=0;i<outarr.length;i++)
+			{
+				jstr += ' "OUT'+(i+1)+'" : "'+(""+outarr[i]).toString().replace('/"/g','')+'" ,';
+			}
+			
+			jstr = '{'+jstr+' "status" : "success" }'
+			//jstr = eval("("+jstr+")");
+		}
+    }
+    catch(e)
+    {
+	    //appendFileText(serverPath+"/shri.txt","\n exception "+e)
+	    jstr= '{"status" : "unsuccess" }';
+	    //jstr = eval("("+jstr+")");
+    }
+	finally
+    {      	
+    	con.close();
+    	con=null;
+    }
+    return jstr;
+}
+
+
+function updateDropDown()
+{
+	
+	var SQL =  request.getParameter('SQL');
+	var tableName =  request.getParameter("tableName");
+	var nameField =  request.getParameter('nameField');
+	var codeField =  request.getParameter('codeField');
+	var blank =  request.getParameter('blank');
+	//return blank+""+SQL+""+tableName+""+nameField+""+codeField+"";
+	var res = getDropDown(tableName, nameField, codeField,blank,SQL);
+	return res;
+}
+
+
+function getDropDown(tableName, nameField, codeField,blank,SQL,vVal)
+{    
+    var sqlString=""
+    if(SQL == undefined)
+    {
+        sqlString = "select distinct " + _encode(nameField) + " , " + _encode(codeField) + " from " + _encode(tableName) + ' where rownum<200 order by ' + _encode(tableName)+ "." + _encode(nameField);
+
+    }
+    else
+    {
+        sqlString = SQL;
+    }   
+//     appendFileText(serverPath+"/sd2.txt","\n  getDropDownquery:"+sqlString)    ;   
+      var resultSet = SQLResultset(sqlString);
+      var vRow = resultSet.recordcount;
+      var resultStr = "";
+     if(blank=="yes" && !vVal)
+          resultStr = resultStr + '<OPTION value="" selected></OPTION>';
+     else if (blank=="yes")
+          resultStr = resultStr + '<OPTION value=""></OPTION>';
+     else
+     			resultStr="";
+          
+      for( var vCnt = 0 ; vCnt < vRow ; vCnt++)
+      { 
+          resultSet.recordno = vCnt;
+         var val = resultSet.fieldbyname(codeField);
+         if (vCnt==0 && blank=="no" && !vVal)
+             resultStr = resultStr + '<OPTION value="'+val+'" selected>' + resultSet.fieldbyname(nameField) +'</OPTION>';
+         else if(vVal && vVal==val)
+             resultStr = resultStr + '<OPTION value="'+val+'" selected>' + resultSet.fieldbyname(nameField) +'</OPTION>';
+         else
+             resultStr = resultStr + '<OPTION value="'+val+'">' + resultSet.fieldbyname(nameField) +'</OPTION>';   
+    };
+     return resultStr;
+     
+}
+
+function getAutoData()
+{
+	var table = request.getParameter("table");
+	var maxitems= request.getParameter("maxitems");
+	var t_name = request.getParameter("name");
+	var code = request.getParameter("code");
+	var vSQL = request.getParameter("autoSQL");
+	var autoAction = request.getParameter("autoAction");
+	var autoCode = request.getParameter("autoCode");
+	var SearchValue = request.getParameter("q");
+	
+	var sqlString=""
+	//appendFileText(serverPath+"/sqlLog.txt","\n"+autoAction+"  query:"+vSQL)	;	
+	if(vSQL == undefined || vSQL=="")
+	{
+		sqlString = "select distinct " + _encode(t_name) + " , " + _encode(code) + " from " + _encode(table) + " where lower("+ _encode(t_name)+") like '"+ _encode(SearchValue)+"%' order by " + _encode(table) + "." + _encode(t_name);
+	}
+	else
+	{
+		sqlString = "select " + _encode(t_name) + " , " + _encode(code) + "  from ( "+ vSQL + " ) where lower("+ _encode(t_name)+") like '"+ _encode(SearchValue)+"%' order by " + _encode(t_name);
+	}
+	if(autoAction.equals("modify"))
+		sqlString ="select " + _encode(t_name) + " , " + _encode(code) + "  from ( "+sqlString+" ) where "+_encode(code)+"='"+ _encode(autoCode)+"'";
+	///appendFileText(serverPath+"/sqlLog.txt","\n"+autoAction+"  query:"+sqlString)	;	
+	sqlString =getPageWiseQuery(sqlString,0,maxitems);
+	//return "query:"+sqlString;
+	
+	
+//	var sqlStr = "select distinct " + t_name + " , " + code + " from " + table + " where "+t_name+" like '"+SearchValue+"%' order by " + table + "." + t_name; 
+	
+	var result = SQLResultset(sqlString);
+	var vRow = result.recordcount;
+	//return vRow;
+	var equalto = "==";
+	var resultStr = "";
+   	for( var vCnt = 0 ; vCnt < vRow ; vCnt++)
+  	{ 
+	  		result.recordno = vCnt; 	
+	  		resultStr+="#" + result.fieldbyname(t_name) + "==" + result.fieldbyname(code) + "#";
+			resultStr=resultStr.substring(0,(resultStr.length-1));
+	}
+	
+	return resultStr;
+}
+function SQLJson(SQLstr,logLabel)
+ {  
+  SQLstr=SQLstr||""
+  if(SQLstr=="")
+    return '{"status":"unsuccess","msg":"","error":"Blank SQL statement",recordcount:0}';
+ 
+  var con = getConnection();
+	var stmt=con.createStatement();
+	sessionquery="alter session set nls_date_format='"+iwebz.globalDateFormat+"'";
+    try
+    {
+      	stmt.executeUpdate(sessionquery);
+  		var rs = stmt.executeQuery(SQLstr);
+      	var rsmd  = rs.getMetaData();
+		var totalcol = rsmd.getColumnCount();
+	    var JString="";
+	    var temp; 
+		  var totalRow = 0;
+		  var fieldType = "";
+		  var vFieldNames = "";
+  		  JString = '{ "fields": [ ' ;  // Starting of the datasource
+		  
+		for(var j=1; j <= totalcol; j++) // Used to form the fields array containing the name of the fields
+		{
+		   	if(j > 1 )
+				JString+= "," ;// Append comma 
+			temp = rsmd.getColumnLabel(j).toLowerCase()+"";
+			JString += '"' + temp + '"';
+    	}			     
+		JString = JString + ' ] ,"data":['; // Start of 
+		var vDateFormat = iwebz.globalDateFormat ;
+		var recordcount="";
+      	while (rs.next())
+      	{
+	        if( totalRow > 0) //puts comma after every records is over
+	  			JString += ","	;
+			JString += "{" ; //start of each record
+	        for (var i=1;i<totalcol ;i++ )
+			{
+				if(rs.getString(i)== null)
+					temp = '';	
+				else
+					temp = ""+rs.getString(i);
+				fieldType = mapDataTypes[rsmd.getColumnClassName(i)];
+				if( i > 1 )
+			  		JString += ","; //used to put comma between each column data
+			  	JString += ''+rsmd.getColumnLabel(i).toLowerCase()+':'
+			  	if(fieldType == "String" )
+			  	{
+				  	temp = temp + "";
+				  	temp = temp.replace(/(\[plus\])/g,"+");	
+				  	temp = temp.replace(/(["\\])/g, '\\$1').replace(/\r/g, '').replace(/\n/g, '\\n');
+				  	JString += '"' + temp + '"'; // if string then put the value inside double quots
+			  	}
+			  	else if(fieldType == "Date")
+				  	JString += '"' + formatDate(toDate(temp,'y-MM-dd kk:mm:ss'),vDateFormat) + '"';
+			  	else
+			  	  JString += temp ;// If the value is number than we should not put the value inside double quots						  
+			}  
+			JString += "}"; // End of each record
+			totalRow++;
+			recordcount=""+rs.getString(totalcol);
+      	}
+		if(totalRow==0)
+			recordcount=0;			
+   		JString += '],"recordcount":' + recordcount+ '}';
+  		rs.close();
+		stmt.close();
+    }
+   	catch(e)
+	{		JString = '{status:"unsuccess",error:"'+ e.toString().replace("\"","","\g").replace("\n","","\g") +'",recordcount:0}';}
+    finally
+    {
+    	con.close();
+    	con=null;
+    }
+    result = JString.replace("\n","");
+	return result; 
+}
+
+function Abc()
+{
+	return SQL("select sysdate from dual");
+}
+
+
+/**
+ *@name       execExplicitCommitSQL
+ *@desc       This function does insertion of SQL passed and does a commit if success and rollsback when the   
+ *@param      
+              * Param1{String} - param Description 
+ *@return     Return Data Desc
+ **/
+function execExplicitCommitSQL(SQLArraystr)
+{
+	var result = '';
+	var  expSQL ="";
+  var con = getConnection();
+  con.setAutoCommit(false);
+	var stmt=con.createStatement();
+	var sessionquery = "alter session set nls_date_format='"+iwebz.globalDateFormat+"'";
+	var row =0;
+	try 
+	{//appendFileText(serverPath+"/Append.txt","\n 7.1");
+		var temp = stmt.executeUpdate(sessionquery);
+		for (var i = 0; i < SQLArraystr.length; i++ )
+		{
+			expSQL ="";
+      if(!SQLArraystr[i])
+        continue;
+			expSQL = "begin "+SQLArraystr[i] + "  End;"; ;
+			LOG_DB_UTILS("execExplicitCommitSQL Query : "+expSQL);
+
+			row = row+stmt.executeUpdate(expSQL);
+		}
+    //appendFileText(serverPath+"/Append.txt","\n 7.2");
+		con.commit();
+		result = '{ status:"success",error:"",recordcount:"'+ row +'"}';       
+    }
+    catch(e)
+    {
+      //appendFileText(serverPath+"/Append.txt","\n 7.3"+e);
+      //appendFileText(serverPath+"/Append.txt","\n 7.7"+e.replace("/\n/g",""));
+	    con.rollback();
+		  //result = '{ status:"unsuccess",error:"'+ e.replace('\n','') +'",recordcount:0}';
+		  result = '{ status:"unsuccess",error:"'+ e.replace('/\n/g','') +'",recordcount:0}';       
+    }
+	finally
+    {  
+     	con.setAutoCommit(true);
+    	con.close();
+    	con=null;
+    	return result;
+    }
+    return result;
+}
+
+
+/** Version control functions **/
+
+function loadSqlScript(vPath)
+{
+	var result = "";
+//     var con = getConnection();
+  return sqlUtil.loadScript_jndi(vPath,""+jndiName+"");
+}
+/** END Version control functions **/
+
+/**
+	Function : sendMail
+**/
+function sendEMail(mailObj)
+{
+   // email.testmail("praveen");
+	//appendFileText(serverPath+"/eod_log123.txt","\n Object Details"+iwebz.mail.userName+"::\n"+iwebz.mail.passWord+"::\n"+iwebz.mail.proxyIP+"::\n"+iwebz.mail.port+"::\n"+iwebz.mail.starttls+"::\n"+iwebz.mail.auth+"::\n"+iwebz.mail.mail_debug+"::\n"+iwebz.mail.socketFactoryClass+"::\n"+iwebz.mail.fallback+"::\n"+mailObj.to+"::\n"+mailObj.cc+"::\n"+mailObj.bcc+"::\n"+mailObj.subject+"::\n"+mailObj.content+"::\n"+mailObj.attachment+"::\n"+iwebz.mail.configProxy+"::\n"+iwebz.mail.proxyIP+"::\n"+iwebz.mail.proxyPort+"::\n"+iwebz.mail.proxyUname+"::\n"+iwebz.mail.proxyPwd);
+	return credemail.sendMail(mailObj.userName,mailObj.passWord,iwebz.mail.IP,iwebz.mail.port,iwebz.mail.starttls,iwebz.mail.auth,iwebz.mail.mail_debug,iwebz.mail.socketFactoryClass,iwebz.mail.fallback,mailObj.to,mailObj.cc,mailObj.bcc,mailObj.subject,mailObj.content,mailObj.attachment,iwebz.mail.configProxy,iwebz.mail.IP,iwebz.mail.proxyPort,iwebz.mail.proxyUname,iwebz.mail.proxyPwd);
+
+}
+
+
+/**
+ *@name       setBlobData
+ *@desc       This function does insertion of Binary Large Objects(BLOB) Data.  
+ *@param      
+              * tablename in which blob data need to be inserted.
+              * fieldname in which blob data need to be inserted.
+              * srcpath source from where blob data file will be uploaded.
+              * clause where clause ca be specified, if any.
+ *@return     Return status, success or unsuccess.
+ **/
+function setBlobData(tablename,fieldname,srcpath,clause)
+{ 
+  if(!tablename || !fieldname || !srcpath)
+    return '{"status":"unsuccess","msg":"","error":"Tablename/Fieldname/Srcpath cannot be blank"}';
+  
+    var con = getConnection();
+    //return dbutil.setBlobData(con,tablename,fieldname,srcpath,clause);
+    var sys_dbsblob=dbutil.setBlobData(con,tablename,fieldname,srcpath,clause);
+    con.close();
+    con=null;
+    return sys_dbsblob;
+		
+}
+
+/**
+ *@name       getBlobData
+ *@desc       This function retrives the Binary Large Objects(BLOB) Data.  
+ *@param      
+              * tablename in which blob data is there.
+              * fieldname in which blob data is there.
+              * srcpath its a path where blob data file will be kept on the server.
+              * clause where clause ca be specified, if any.
+ *@return     Return status, success or unsuccess.
+ **/
+function getBlobData(tablename,fieldname,srcpath,clause)
+{ 
+  if(!tablename || !fieldname || !srcpath)
+    return '{"status":"unsuccess","msg":"","error":"Tablename/Fieldname/Srcpath cannot be blank"}';
+
+    var con = getConnection();
+//    return dbutil.getBlobData(con,tablename,fieldname,srcpath,clause);
+    var sys_dbgblob=dbutil.getBlobData(con,tablename,fieldname,srcpath,clause);
+    con.close();
+    con=null;
+    return sys_dbgblob;
+    //return dbutil.SQL_jndi(iwebz.globalDateFormat,SQLstr,jndiName,"NoLabel");
+    
+}
+
+/**
+ *@event      signPDF.
+ *@desc       Signs the PDf and writes the sign pdf to new location
+ *@author     vikas
+ *@dated      10-03-2011
+ *@param      pfx{String} - pfx file path
+ *@param      pdffile{String} - pdf to be signed , path with file name
+ *@validation 
+              * Val Desc                   
+ *@return     Return Data Desc
+ **/
+function signPDF(pfx,pdffile,signpdffile,reason,location,pwd,ishidden)
+{  
+  if(pfx=="" ||pdffile ==""||signpdffile ==""||pwd=="")
+  return '{status:"unsuccess",error:"Insufficient Parameters."}';
+   var v_sgnPDF=pdfUtils.signPDF(pfx,pdffile,signpdffile,reason, location,pwd,ishidden);
+   return v_sgnPDF;
+}
+
+
+/**
+ *@event      verifyCertPass.
+ *@desc       verifies the password associated with the .pfx file
+ *@author     durgesh
+ *@dated      18-03-2011
+ *@param      pfx{String} - pfx file path
+ *@param      password
+ *@validation 
+              
+ *@return     Return success/unsuccess
+ **/
+function verifyCertPass(pfxFile,pass)
+{
+    if(!pfxFile || !pass)
+      return '{"status":"unsuccess","error":"Invalid parameters","msg":""}';
+    var v_isPass = pdfUtils.isCertPwd(pfxFile,pass);
+    return v_isPass;     
+}
+
+
+/**
+ *@event      getSignatureDetails.
+ *@desc       gets the aditional info associated with .pfx file
+ *@author     durgesh
+ *@dated      19-04-2011
+ *@param      pfx{String} - pfx file path, pfx file password
+ *@param      password
+ *@validation 
+              
+ *@return     Return success/unsuccess
+ **/
+function getSignatureDetails(pfxname,pfxpass)
+{
+  if(!pfxname || !pfxpass)
+    return {"status":"unsuccess","error":"Invalid parameters in getSignatureDetails"};
+  var pfx_det = pdfUtils.getPfxDetails(pfxname,pfxpass);
+    return pfx_det;   
+}
+
+
+/**
+ *@event      isPFXSame.
+ *@desc       compares the tow .pfx files to avoid duplication.
+ *@author     durgesh
+ *@dated      19-04-2011
+ *@param      pfx1,pass1,pfx2,pass2
+ *@param      
+ *@validation 
+              
+ *@return     Return success/unsuccess
+ **/
+function isPFXSame(pfx1,pass1,pfx2,pass2)
+{
+	var isSame="";		
+//	appendFileText(serverPath+"/log/mohini.txt","\n start isPFXSame");
+	if(!pfx1 || !pass1 || !pfx2 || !pass2)	
+		return '{"status":"unsuccess","error":"Invalid parameters in isPFXSame","msg":""}';
+	isSame = pdfUtils.comparePFX(pfx1,pass1,pfx2,pass2);
+//	appendFileText(serverPath+"/log/mohini.txt","\n query:")
+	return isSame;
+}
+
+/**
+ *@event      createPFXFile.
+ *@desc       creates a PFX file
+ *@author     Mohini
+ *@dated      31-12-2011
+ *@return     status(Object)
+**/
+function createPFXFile(vObj)
+{
+ 	try
+	  { 
+		var vObj=vObj||{};
+		vObj.pfxpath=vObj.pfxpath||"";
+		vObj.user_id=vObj.user_id||"";
+		
+		if(vObj.pfxpath=="" || vObj.user_id=="")
+			return {"status":"unsuccess","msg":"","error":"Parameters not found(PFX Path/User Id)"}	
+		else
+		{
+			//Checks if the signature exits for specified user
+			v_sql="select filename,toolkit.decrypt(password) password from iwz_dgs_signatures where userid='"+ _encode(vObj.user_id)+"' and deleted = 'N' and auth_status='1'";
+			v_sql=SQLResultset(v_sql);		
+			if(v_sql.recordcount==0)
+				return {"status":"unsuccess","msg":"","error":"No Signature exists for user "+vObj.user_id}	
+	
+			//creates a PFX file from the blob data stored in database
+			v_blobresult=getBlobData("iwz_dgs_signatures","signature",vObj.pfxpath,"and userid='"+_encode(vObj.user_id)+"' and deleted='N' and auth_status='1'");
+			v_blobresult = eval('('+v_blobresult+')'); 
+			if(v_blobresult.status=="unsuccess")
+				return {"status":"unsuccess","msg":"","error":"Failed to retrieve signature for user "+vObj.user_id}	
+			
+			return {"status":"success","msg":"PFX file created successfully","error":"","password":v_sql.fieldbyname('password'),"PFX_path":vObj.pfxpath}					
+		}
+	}
+	catch(e)
+	{
+		return {"status":"unsuccess","msg":"","error":"Exception occurred"+e}	
+	}
+}
+
+
+/**
+ *@name       setBlobText
+ *@desc       This function does insertion of Binary Large Objects(BLOB) Data.  
+ *@param      
+              * tablename in which blob data need to be inserted.
+              * fieldname in which blob data need to be inserted.
+              * text that is to be stored as blob data.
+              * clause where clause ca be specified, if any.
+ *@author     Kruti Gada 
+ *@createdon  23-02-2012         
+ *@return     Return status, success or unsuccess.
+ **/
+function setBlobText(tablename,fieldname,srcpath,clause)
+{ 
+  if(!tablename || !fieldname || !srcpath)
+    return '{"status":"unsuccess","msg":"","error":"Tablename/Fieldname/Srcpath cannot be blank"}';
+
+  var con = getConnection();
+  return dbutil.setBlobText(con,tablename,fieldname,srcpath,clause);
+}
+/**
+ *@name       getBlobText
+ *@desc       This function retrives  Binary Large Objects(BLOB) Data as String.  
+ *@param      
+              * tablename in which blob data need to be inserted.
+              * fieldname in which blob data need to be inserted.
+              * clause where clause ca be specified, if any.
+ *@author     Kruti Gada 
+ *@createdon  23-02-2012         
+ *@return     Return String stored as blob.
+ **/
+function getBlobText(tablename,fieldname,srcpath,clause)
+{
+ if(!tablename || !fieldname)
+  return '{"status":"unsuccess","msg":"","error":"Tablename/Fieldname cannot be blank"}';
+
+  var con = getConnection();
+  return dbutil.getBlobText(con,tablename,fieldname,srcpath,clause);
+}
+/**
+ *@name       dumpSQLtoFile
+ *@desc       This function dumps the record in the specified file with row delemeter.  
+ *@param      
+              * SQLStr whose records need to be dumped.
+              * rowdeleter
+              * fielpath absolte file path where file is to be created.
+ *@author     shashankd
+ *@createdon  27-05-2013
+ *@return     Return JSON String with .
+ **/
+function dumpSQLtoFile(SQLStr,rowdelemeter,filepath,isBatch)
+{ 
+ if(!SQLStr)
+  return '{"status":"unsuccess","msg":"","error":"SQL statement cannot be blank"}';
+
+  var con = getConnection(isBatch);
+  var result =dbutil.dumpSQLtoFile(iwebz.globalDateFormat,SQLStr,con,rowdelemeter,filepath)
+ 	try
+	{
+	    return eval('(' +result+ ')');
+	}
+	catch(e)
+	{
+		return {"status":"unsuccess",error:"Error occurred while dumping the records details."}	
+	}
+}
+/**
+ *@event      createDBFFile.
+ *@desc       Create a DBF file using the query
+ *@author     Mohini
+ *@dated      21-10-2013 4:07:32 PM
+ *@param      SQLstr{String} - SQL String
+ *@param      destFile{String} - Destination file path
+ *@return     status
+**/
+function createDBFFile(SQLstr,destFile)
+{
+  var response=""
+  if(!SQLstr)
+    return '{"status":"unsuccess","msg":"","error":"SQL String not found."}';
+  if(!destFile)
+    return '{"status":"unsuccess","msg":"","error":"Please specify the file location."}';
+
+  try
+  {
+    var con = getConnection(isBatch);
+    response=dbutil.writeDBF_dBase_5(iwebz.globalDateFormat,SQLstr,con ,destFile) 
+    return response;
+  }
+  catch(error)
+  {
+    return '{"status":"unsuccess","msg":"","error":"Exception occurred while creating DBF file.'+error+'"}';
+  }
+  finally
+  {
+    if(con)
+    {
+     	con.close();
+    	con=null;
+    } 
+  }    
+}
+
+/**
+ *@event      encryptPDFFile.
+ *@desc       make the pdf file password protected
+ *@author     Mohini
+ *@dated      21-10-2013 4:26:43 PM
+ *@param      sourceFilePath{String} - Source file name with path 
+ *            destinationFilePath - destination file name with path
+ *            userPassword - password for users - will have only read functionality
+ *            ownerPassword -password for owner 
+ *@return     Return Data Desc
+**/
+function encryptPDFFile(sourceFilePath, destinationFilePath, userPassword, ownerPassword)
+{
+  var response=""
+  try
+  {
+    if(!sourceFilePath || !destinationFilePath || !userPassword || !ownerPassword)
+      return '{"status":"unsuccess","msg":"","error":"Insufficient parameters."}';
+      
+    response=pdfUtils.encryptPDFFile(sourceFilePath, destinationFilePath, userPassword, ownerPassword)
+  }
+  catch(error)
+  {
+    return '{"status":"unsuccess","msg":"","error":"'+error+'"}';
+  }
+  return response;
+}
+
+
+
+function OexecSQL(SQLstr,con)
+{ 
+	LOG_DB_UTILS("execSQL Query : "+SQLstr);
+    result = '';
+    SQLstr=SQLstr||""
+    if(SQLstr=="")
+      return '{"status":"unsuccess","msg":"","error":"Blank SQL statement.",recordcount:0}';
+      
+    var logLabel="";
+    var sysdb_esql=dbutil.OexecSQL(iwebz.globalDateFormat,SQLstr,con,logLabel);
+    return sysdb_esql;
+    
+		var stmt=con.createStatement();
+		sessionquery="alter session set nls_date_format='"+iwebz.globalDateFormat+"'";
+		try 
+	{ 	stmt.executeUpdate(sessionquery);
+		row = stmt.executeUpdate(SQLstr);
+		result = '{ status:"success",error:"",recordcount:'+ row +' }';      
+		stmt.close();
+    }
+    catch(e)
+    {
+		//appendFileText(serverPath+"/Durgesh.txt","\n SQLstr :: "+SQLstr);
+		result = '{ status:"unsuccess",error:"'+ e.toString().replace("\"","","\g").replace("\n","","\g") +'",recordcount:0}';       
+    }
+
+     result = result.replace("\r\n"," ","\g");
+	 return result;
+}
+
+function OexecSQLResultset(SQLstr,con)
+{ 
+	var result = OexecSQL(SQLstr,con);
+ 	try
+ 	{
+ 	return eval('(' + result + ')');
+	}
+	catch(e)
+	{
+		return {"status":"unsuccess",error:"Error while executing SQL"}	
+	}
+}
+
+
+function OSQL(SQLstr,con)
+ {  
+	LOG_DB_UTILS("SQL Query : "+SQLstr);
+    SQLstr=SQLstr||""
+    if(SQLstr=="")
+      return '{"status":"unsuccess","msg":"","error":"Blank SQL statement.",recordcount:0}';
+
+    
+    var sys_db=dbutil.OSQL(iwebz.globalDateFormat,SQLstr,con,"NoLabel");
+    return sys_db;
+    //return dbutil.SQL_jndi(iwebz.globalDateFormat,SQLstr,jndiName,"NoLabel");
+    
+	var stmt=con.createStatement();
+	sessionquery="alter session set nls_date_format='"+iwebz.globalDateFormat+"'";
+    try
+    {
+      	stmt.executeUpdate(sessionquery);
+      	var rs = stmt.executeQuery(SQLstr);
+  		//crs = new java.sun.rowset.CachedRowSetImpl();
+      	//crs = new Packages.oracle.jdbc.rowset.OracleCachedRowSet();
+      	//crs.populate(rs);
+      	var rsmd  = rs.getMetaData();
+		var totalcol = rsmd.getColumnCount();
+		
+	    var JString="";
+	    var temp; 
+		  var totalRow = 0;
+		  var fieldType = "";
+		  var vFieldNames = "";
+		  var dataType = ' "fieldtype": [' ;
+		  var dataSize = ' "fieldsize": [' ;
+		  var columns = ' "columns": [' ;
+		  JString = '{ "fields": [ ' ;  // Starting of the datasource
+		  
+		  for(var j=1; j <= totalcol; j++) // Used to form the fields array containing the name of the fields
+		  {
+			   if(j > 1 )
+			   {
+				  JString+= "," ;// Append comma 
+				  dataType += "," ;
+				  dataSize +="," ;
+				  vFieldNames += ","; 
+				  columns += ",";
+			    }
+			    temp = rsmd.getColumnLabel(j).toLowerCase()+"";
+			    JString += '"' + temp + '"';
+			    vFieldNames += '"' + temp + '":' + (j-1); 
+			    columns += '"' + rsmd.getColumnLabel(j) + '"'; 
+			    dataType += '"' + mapDataTypes[rsmd.getColumnClassName(j)] + '"' ;
+          dataSize +='"' + rsmd.getColumnDisplaySize(j) + '"' ;
+       }			     
+  		dataType += " ]";
+  		dataSize += " ]";
+  		columns += " ]";
+  		JString = JString + ' ] ,' + dataSize + ', ' + dataType + ', ' + columns + ', ' + ' "data":['; // Start of records
+  		//var vDateFormat = globalformat.getDateFormat("date");
+  		
+  		var vDateFormat = iwebz.globalDateFormat ;
+      while (rs.next())
+      {
+	      
+        if( totalRow > 0) //puts comma after every records is over
+			  {
+				  JString += ","	;
+			  }
+			  JString += "[" ; //start of each record
+			  
+        for (var i=1;i<=totalcol ;i++ )
+				{
+				  //temp = ""+ rs.getString(i);
+		      		//if("null".equals(temp) || temp == null) temp="";	
+		      		//abhay start
+		      		//changed by vikas on 18-10-2007 for  org mozilla undefiend error due to null values in table		  
+		      		//return rs.getString(i);
+		      		var str=rs.getString(i)
+					if(str== null)
+					{	temp = '';	}
+					else
+					{	temp = ""+str;}
+					//abhay end
+		      		
+				  fieldType = mapDataTypes[rsmd.getColumnClassName(i)];
+				  if( i > 1 )
+				  {
+				  	JString += ","; //used to put comma between each column data
+				  }
+				  if(fieldType == "String" )
+				  {
+					  temp = temp + "";
+					  temp = temp.replace(/(\[plus\])/g,"+");	
+					  temp = temp.replace(/(["\\])/g, '\\$1').replace(/\r/g, '').replace(/\n/g, '\\n');
+					  JString += '"' + temp + '"'; // if string then put the value inside double quots
+				  }
+				  else if(fieldType == "Date")
+				  {
+					  JString += '"' + formatDate(toDate(temp,'y-MM-dd kk:mm:ss'),vDateFormat) + '"';
+					  //JString += '"' + temp + '"';
+				  }
+				  else
+				  {
+					  JString += temp ;// If the value is number than we should not put the value inside double quots						  
+				  }
+				}  
+			  JString += "]"; // End of each record
+			  //return JString ;
+			  totalRow++;
+      }
+     //appendFileText(serverPath+"/sqlLog.txt","\n length :-"+JString.length+" SQl Function-End Time:-"+getServerDateTime()+"-"+userid+"->"+SQLstr);	 
+      // samrat var funField = '"fieldbyname": function( vFN ){ return this.data[this.recordno][eval("this." + vFN)];} ';
+      	//manoj 18-10-07 var funField = '"fieldbyname": function( vFN ){return this.data[this.recordno][eval("this[" + "\\"" + vFN + "\\"" + "]" )];} ';
+      	var funField = '"fieldbyname": function( vFN ){if((this.fieldtype[eval("this[" + "\\"" + vFN + "\\"" + "]" )]=="double") && isNaN(this.data[this.recordno][eval("this[" + "\\"" + vFN + "\\"" + "]" )])){return ""} else {   return  this.data[this.recordno][eval("this[" + "\\"" + vFN + "\\"" + "]" )]};} ';
+  		JString += "]," + vFieldNames + ',' + funField + ',' ; // End of records
+  		funField = '"fieldname": function( vInd ){ return this.fields[vInd];},';
+  		JString += funField ;
+//samrat  		funField = '"getfieldtype": function( vFN ){ return this.fieldtype[eval("this." + vFN)];},';
+  		funField = '"getfieldtype": function( vFN ){ return this.fieldtype[eval("this[" + "\\"" + vFN + "\\"" + "]" )];},';
+  		JString += funField ;
+  		funField = '"fieldvalue": function( vInd ){return this.data[this.recordno][vInd];},';
+  		JString += funField ;
+//samrat  		funField = '"getfieldsize": function( vFN ){ return this.fieldsize[eval("this." + vFN)];},';
+  		funField = '"getfieldsize": function( vFN ){ return this.fieldsize[eval("this[" + "\\"" + vFN + "\\"" + "]" )];},';
+  		JString += funField ;
+  		JString += '"fieldcount":'  + totalcol + "," ;
+  		JString += 'sort:function(vOrder){if((vOrder == 0 || vOrder == 1) && this.sortcolumn.length > 0){';
+  		JString += 'for( var vRow = 0 ; vRow < this.recordcount - 1 ; vRow++ ){for( var vRow1 = vRow + 1 ; vRow1 < this.recordcount ; vRow1++ ){';
+  		JString += ' if( this.compareArray(this.data[vRow],this.data[vRow1]) == vOrder-1 ) { var arrTemp = this.data[vRow];this.data[vRow] = this.data[vRow1];this.data[vRow1] = arrTemp;} } } } } ,' ;
+  		JString += 'compareArray:function(arrFirst,arrSecond){';
+  		JString += 'if( arrFirst[this[this.sortcolumn]] < arrSecond[this[this.sortcolumn]]) ';
+  		JString += 'return 0 ;';
+  		JString += 'if( arrFirst[this[this.sortcolumn]] >= arrSecond[this[this.sortcolumn]] ) ';
+  		JString += 'return -1; },' ;	
+  		JString += '"recordcount":' + totalRow + ',"recordno":0,"sortcolumn":"","filtered":false,"applyFilter":function(x){if(!this.filtered){this.olddata=this.data;}y=this.data.filter(x);this.data=y;this.filtered=true;this.recordcount=this.data.length;this.recordno=0},"applyFilterOnly":function(x){if(!this.filtered){this.olddata=this.data;}y=this.data.filterOnly(x);this.data=y;this.filtered=true;this.recordcount=this.data.length;this.recordno=0},"removeFilter":function(){if(this.filtered){this.data=this.olddata;this.filtered=false;this.recordcount=this.data.length;this.recordno=0}} } ' ;         
+  		rs.close();
+		//   		stmt.close();
+		//   		con.close();
+		stmt.close();
+    }
+ 	   catch(e)
+    {
+			JString = '{status:"unsuccess",error:"'+ e.toString().replace("\"","","\g").replace("\n","","\g") +'",recordcount:0}';
+    }
+    finally
+    {
+      	
+    	con.close();
+    	con=null;
+    }
+    result = JString.replace("\n","");
+	//appendFileText(serverPath+"/sqlLog.txt","\nSQl Function--Label:--"+logLabel+"---Start Time:--"+logStartTime+"--End Time:--"+getServerDateTime()+"--"+userid+"-->"+SQLstr)	
+	//appendFileText(serverPath+"/sqlLog.txt","\nSQl Function-Start Time:-"+logStartTime+"-End Time:-"+getServerDateTime()+"-"+userid+"->"+SQLstr)	
+	return result; 
+}
+
+
+function OSQLResultset(SQLstr,con)
+{ 
+  	result = OSQL(SQLstr,con);
+  try
+  { 
+	  return eval('(' + result + ')');
+  }
+  catch(e)
+  { 
+	var result = '{status : "unsucess" ,error:"Error ocurred' + e.toString().replace("\"","","\g").replace("\n","","\g") + '"}';
+    return eval('(' + result + ')');
+  }
+}

@@ -1,0 +1,18 @@
+var _globaldataset=_dataset();
+iServiceManager.registerServiceRequest("modulelist",_globaldataset.modulelist);
+iServiceManager.registerServiceRequest("AllHolding",_globaldataset.getAllHolding);
+iServiceManager.registerServiceRequest("RMData",_globaldataset.getRMData);
+iServiceManager.registerServiceRequest("UserProfile",_globaldataset.getUserProfile);
+iServiceManager.registerServiceRequest("UserAccount",_globaldataset.getUserAccounts);
+iServiceManager.registerServiceRequest("UserSettings",_globaldataset.getUserSettings);
+iServiceManager.registerServiceRequest("tradecurrency",_globaldataset.tradecurrency);
+iServiceManager.registerServiceRequest("passwordparameter",_globaldataset.getpasswordparameter);
+iServiceManager.registerServiceRequest("tradesecurity",_globaldataset.tradesecurity);
+iServiceManager.registerServiceRequest("riskquestion",_globaldataset.RiskQuestion);
+iServiceManager.registerServiceRequest("riskanswer",_globaldataset.RiskAnswers);
+iServiceManager.registerServiceRequest("riskdefn",_globaldataset.RiskDefn);
+iServiceManager.registerServiceRequest("riskprofileallocation",_globaldataset.ModelDefn);
+iServiceManager.registerServiceRequest("newsfeed",_globaldataset.newsfeed);
+iServiceManager.registerServiceRequest("userwatchlist",_globaldataset.userwatchlist);
+iServiceManager.registerServiceRequest("tradelist",_globaldataset.tradelist);
+iServiceManager.registerServiceRequest("watchlist",_globaldataset.watchlist);

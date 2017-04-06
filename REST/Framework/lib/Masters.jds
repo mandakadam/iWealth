@@ -1,0 +1,1447 @@
+var iwebz = iwebz||{}
+iwebz.abc=function()
+{
+	log.info("Vikas here ");
+}
+
+/**
+	@fileoverview This Contains functions For Masters.
+	@version 0.5
+	@requires DBschema.js,dbUtils.jds,FuncUtils.jds
+	@lastupdatedon 16-04-2008 
+*/
+var action="";
+var _action=false;
+var masterdata="";
+var custmasterdata="";
+
+var vmainData={};
+var cust_vmainData={}; // Added by Harshit - 20032014 - For Multitable custom fields
+
+
+function master_log(text,file)		//added by Mohsin  - for writing error log 27/05/2014
+{
+	file=file||"Masters";
+//	appendFileText(serverPath+"/log/"+file+".txt","\n in Master : "+text);  
+}
+//gets the masters configuration for further processing at client side
+function getMasterConfig()
+{
+	var leafnode=request.getParameter("v");
+	var tablename=request.getParameter("tablename");
+ 	var modulejson="";
+ 	LogDebug("getMasterConfig ");
+
+	var moduledef="SELECT *  from iwz_masters_config  WHERE viewid='"+_encode(leafnode)+"'";
+ 	//return SQL(moduledef);
+  	if(DBSchema.primarykey[tablename])
+ 		modulejson=modulejson+'pkey:"'+DBSchema.primarykey[tablename]+'",';
+
+ 	
+	moduledef=SQLResultset(moduledef);
+if(moduledef.recordcount==0){modulejson=modulejson.substring(0,modulejson.length-1);
+  	return modulejson;} 	
+ 	modulejson=modulejson+'addScreen:"'+moduledef.fieldbyname("addscreen")+'",';
+ 	
+ 	if(moduledef.fieldbyname("beforedelete")!="")
+  		modulejson=modulejson+'beforeDelete:function(){return '+moduledef.fieldbyname("beforedelete")+'();},';
+ 	
+  	if(moduledef.fieldbyname("afterdelete")!="")
+  		modulejson=modulejson+'afterDelete:function(){return '+moduledef.fieldbyname("afterdelete")+'();},';
+  	
+  	if(moduledef.fieldbyname("beforemodify")!="")
+  		modulejson=modulejson+'beforeModify:function(){return '+moduledef.fieldbyname("beforemodify")+'();},';
+  	
+  	if(moduledef.fieldbyname("aftermodify")!="")
+  		modulejson=modulejson+'afterModify:function(){return '+moduledef.fieldbyname("aftermodify")+'();},';
+  	
+  	if(moduledef.fieldbyname("beforeadd")!="")
+  		modulejson=modulejson+'beforeAdd:function(){return '+moduledef.fieldbyname("beforeadd")+'();},';
+  	
+  	if(moduledef.fieldbyname("afteradd")!="")
+  		modulejson=modulejson+'afterAdd:function(){return '+moduledef.fieldbyname("afteradd")+'();},';
+
+  	if(moduledef.fieldbyname("onload")!="")
+  		modulejson=modulejson+'onload:function(){return '+moduledef.fieldbyname("onload")+'();},';	
+  	
+  	if(moduledef.fieldbyname("isdocvview")!="")
+  		modulejson=modulejson+'isdocview:"'+moduledef.fieldbyname("isdocview")+'",';				
+  	//modulejson=modulejson+'childConfig:['+getChildMasterConfig(leafnode)+'],';
+  		
+  	modulejson=modulejson.substring(0,modulejson.length-1);
+  	return modulejson;
+ 	
+}
+//returns the  addscreen
+function getMasterScreenAdd()
+{	
+	//Changes made by Kruti on 16-07-2012 to incorporate create like clause
+	var vSQLMeta = "";
+ 	var vViewname=request.getParameter("viewname");
+ 	var vViewpath=request.getParameter("viewpath");
+ 	var vViewId=request.getParameter("v");
+ 	var cViewId = request.getParameter("cv");
+	
+ 	var JString=request.getParameter("JString")||'{"fieldnames":[],"data":[]}';
+ 	var tablename=request.getParameter("tablename");
+ 	
+ 	JString = decodeEscapeCharacters(JString);
+ 	action = "add";
+ 	var paramdata = eval('(' + JString + ')');
+ 	var sObj = vViewpath+"::"+vViewname+"::Add";
+ 	var HTMLfilename = ""+ request.getParameter("screenname");
+ 	var response="";
+ 	var custResponse="";
+ 	var epViewid = (cViewId)?cViewId:vViewId;
+ 	if (!checkaccess(sObj,"action")) {return "<div style='display:none'>"+getFileText(serverPath+"/"+HTMLfilename+".htm")+"</div>"+request.getAttribute('noaccessHTML')+"";}
+ 	var obj={};
+	obj.paramdata=paramdata;
+	obj.scr_ref = epViewid;
+	obj.action="before:"+action;
+	var valArr = iwebz.execProcessValidation(obj);
+	
+	if(valArr.status != "success")
+		return valArr.error;
+		
+ 	if(paramdata.data.length==0)
+ 	{
+	 	
+		if (!"".equalsIgnoreCase(HTMLfilename)){return getFileText(serverPath+""+HTMLfilename+".htm");}
+	    return "";
+  	}
+  	else 
+  	{
+		_action=true;
+		var whereClause = new Array();
+		var addArray=new Array();
+		var custAddArray=new Array();
+		var newarr=[]
+		for (var idx=0;idx<paramdata.fieldnames.length; idx++ )
+  			whereClause[idx]=paramdata.fieldnames[idx]+" = '"+_encode(paramdata.data[0][idx])+"'";
+  		response=getMastesColumnNames(tablename);
+  		if(DBSchema.createLike[tablename])
+  			vSQLMeta = "SELECT col_name FROM iwz_cust_metadata WHERE upper(cust_table_name) = upper('"+tablename+"') and col_name not in ('"+DBSchema.createLike[tablename].join("','")+"')";
+  		else vSQLMeta = "SELECT col_name FROM iwz_cust_metadata WHERE upper(cust_table_name) = upper('"+tablename+"')";
+  		// appendFileText(serverPath+"/log/CustomFields.txt","\n vSQLMeta: "+vSQLMeta);  
+  		vSQLMeta = SQLResultset(vSQLMeta);
+  		// appendFileText(serverPath+"/log/CustomFields.txt","\n response.colnames: "+response.colnames);  
+  		response.colnames=response.colnames.split(',');
+      newarr=DBSchema.primarykey[tablename].split(",");
+  		
+  	for(var i=0;i<response.colnames.length;i++)
+		{
+			if( (newarr.indexOf(response.colnames[i].toLowerCase())==-1)) //&& (DBSchema.createLike[tablename].indexOf(response.colnames[i].toLowerCase())==-1) )
+			{
+				if(DBSchema.createLike[tablename])
+				{
+					if(DBSchema.createLike[tablename].indexOf(response.colnames[i].toLowerCase())==-1)
+						addArray[addArray.length]=response.colnames[i];
+				}
+				else
+				addArray[addArray.length]=response.colnames[i];
+			}
+			else
+			continue;	
+		}		
+			
+// 		  if(newarr.length>0)
+// 		  {
+//     		    if(newarr.indexOf(response.colnames[i].toLowerCase())==-1)
+// 					addArray[addArray.length]=response.colnames[i];
+//       		}
+// 			else if(DBSchema.createLike[tablename])
+// 			{
+// 				if(DBSchema.createLike[tablename].indexOf(response.colnames[i].toLowerCase())==-1)
+// 					addArray[addArray.length]=response.colnames[i];
+// 			}
+// 			else addArray=response.colnames;
+		//}
+		// appendFileText(serverPath+"/log/shrilog1.txt","\n query : "+"Select "+addArray+" From "+ tablename + "  where " + whereClause.join(" and "));  
+		if(response.status=="success")
+			masterdata = SQLResultset("Select "+addArray+" From "+ tablename + "  where " + whereClause.join(" and "));
+		else	
+			masterdata = SQLResultset("Select * From "+ tablename + "  where " + whereClause.join(" and "));
+		//Check for the custom fields if any then create a dataset of the same 
+		var newArr ;
+		var cust_whr_clause = [];
+		newArr = DBSchema.primarykey[tablename].split(",")
+		
+		for(var k=0;k<whereClause.length;k++)
+		{
+			for(var h=0;h<newArr.length;h++)
+			{
+				if(whereClause[k].substring(0,whereClause[k].lastIndexOf("=")).trim()==newArr[h].trim())
+					cust_whr_clause[cust_whr_clause.length] = 	whereClause[k];
+				else continue;	
+			}
+		}
+		
+		// appendFileText(serverPath+"/log/CustomFields.txt","\n cust_whr_clause: "+cust_whr_clause);  
+		if(vSQLMeta.recordcount!=0)
+	    {
+		  custmasterdata = SQLResultset("Select "+vSQLMeta.data.join(',')+" From custom_"+ tablename + "  where " + cust_whr_clause.join(" and "));
+		  custmasterdata.recordno=0;
+	    }	
+		masterdata.recordno=0;
+		
+		return getFileText(serverPath+"/"+HTMLfilename+".htm");
+   	}
+   	//Changes ended by Kruti on 16-07-2012 to incorporate create like clause
+}
+
+
+// will be used to set the values
+function getFieldData(fldname)
+{	
+	if (action == "modify" || action == "delete" || _action ) 
+	{
+		if(masterdata.fieldbyname(fldname)=="0")
+			return "0"
+		else	
+			return ""+(masterdata.fieldbyname(fldname)||"");
+	}
+	return "";	
+}
+
+
+// will be used to set the values
+function getCustFieldData(fldname)
+{	
+//	appendFileText(serverPath+"/log/CustomFields.txt","\n fldname : "+fldname);
+//	appendFileText(serverPath+"/log/CustomFields.txt","\n custmasterdata : "+JSON.stringify(custmasterdata));
+
+	if(action=="modify" || action=="delete" ) 
+	{
+	   appendFileText(serverPath+"/log/CustomFields.txt","\n fldname : "+fldname+" : "+custmasterdata.fieldbyname(fldname));
+		
+		return ""+custmasterdata.fieldbyname(fldname);
+	}
+
+	return "";	
+}
+
+
+
+
+function getLockedData(fldname)
+{	if (action == "modify" || action == "delete" || _action ) 
+	{
+		return masterdata.fieldbyname(fldname);
+	}
+	return "N";	
+}
+
+
+function getCreatedBy(fldname)
+{	if (action == "modify" || action == "delete" || _action ) 
+	{
+		return masterdata.fieldbyname(fldname);
+	}
+	return userObj.userid;
+}
+
+
+function getBranchcode(fldname)
+{	if (action == "modify" || action == "delete" || _action ) 
+	{
+		return masterdata.fieldbyname(fldname);
+	}
+	return userObj.branch_code;	
+}
+
+function getUpdatedBy(fldname)
+{		
+	return userObj.userid;	
+}
+
+function getSystemDate(fldname)
+{	if (action == "modify" || action == "delete"  ) 
+	{
+		return masterdata.fieldbyname(fldname);
+	}
+	return getServerDate();	
+}
+
+function onServerAdd(data)
+{
+	var JObjdata = eval('(' + data + ')');
+	//var JObjdata = JSON.parse(data);
+	var vViewname = JObjdata.viewname;
+ 	var vViewpath = JObjdata.viewpath;
+ 	var vViewId = JObjdata.v;
+ 	var _ign_mast_prc_con = JObjdata._ign_mast_prc_con;
+ 	var sObj = vViewpath+"::"+vViewname+"::Add";
+ 	// if (!checkaccess(sObj,"action")) return request.getAttribute('noaccessHTML');
+ 	var JString = JSON.stringify(JObjdata.JString);
+	var tablename = JObjdata.tablename;
+	JString = decodeEscapeCharacters(JString);
+
+	var paramdataAdd = eval('(' + JString + ')');
+  
+	var obj={};
+	obj.paramdata=paramdataAdd;
+	obj.scr_ref = vViewId;
+	obj.action="before:save:add";
+	obj._ignore_prc_con=(_ign_mast_prc_con||'n')	
+	log.info("here 1");
+	var valArr = iwebz.execProcessValidation(obj);
+	
+	log.info("here 2");
+	
+	if(valArr.status != "success")
+		return JSON.stringify(valArr);
+
+// added by mukesh on 19-09-2014 for adding user id in created by coulmn-start
+			
+	// paramdataAdd["created_by"]=userObj.user_id
+	// paramdataAdd.fieldnames[paramdataAdd.fieldnames.length]="created_by"
+
+// added by mukesh on 19-09-2014 for adding user id in created by coulmn-end
+	var ret=getInsertData(paramdataAdd,tablename,false)
+	
+	// var ret_log=getInsertData(paramdataAdd,tablename,true)
+	//appendFileText(serverPath+"/log/test.txt","\n ret = " + JSON.stringify(ret));
+	// final_sql = "begin \n" + JSON.parse(ret).msg 
+	// final_sql = final_sql + JSON.parse(ret_log).msg  + "\n end ;" 
+	// final_sql = final_sql + "\n end ;" 
+	
+	// var resultStr = execSQLResultset(final_sql) ;
+	// if(resultStr.status=="unsuccess")
+		// return '{"status":"unsuccess","msg":"","error":"'+ resultStr.error+'"}';
+
+	obj={};
+	obj.paramdata=paramdataAdd;
+	obj.scr_ref = vViewId;
+	obj.action="after:save:add";
+	obj._ignore_prc_con=(_ign_mast_prc_con||'n')	
+	var valArr = iwebz.execProcessValidation(obj);
+	if(valArr.status != "success")
+		return JSON.stringify(valArr);
+	return ret
+}
+
+
+function getMasterScreenModify()
+{	   
+
+  	action="modify";
+  	var vViewname=request.getParameter("viewname");
+   	var vViewpath=request.getParameter("viewpath");
+   	var vViewId = request.getParameter("v");
+   	var sObj = vViewpath+"::"+vViewname+"::Modify";
+   	var vSQLMeta = "";
+   	var HTMLfilename = ""+ request.getParameter("screenname");
+   	var JString = request.getParameter("JString");
+  	JString = decodeEscapeCharacters(JString);
+  	var paramdata = eval('(' + JString + ')');
+	
+	
+	//Changed By Aarti
+	var checkValidation ="";
+	var check_whereClause ="";
+	for (var idx=0;idx<paramdata.fieldnames.length; idx++ )
+	{
+		check_whereClause = check_whereClause+" and "+paramdata.fieldnames[idx]+" = '"+paramdata.data[0][idx]+"' "
+	}
+	checkValidation = " select *  from "+request.getParameter("tablename")+" where 1=1 "+check_whereClause;
+	checkValidation = SQLResultset(checkValidation)
+	
+	if (checkValidation.data[checkValidation.recordno][checkValidation.deleted] == 'Y')
+	return "<b>Record is already deleted.</b>"
+	
+	if (checkValidation.data[checkValidation.recordno][checkValidation.authorization_status] == '1' || checkValidation.data[checkValidation.recordno][checkValidation.auth_status] == '1')
+	return "<b>Record has been authorised.<Br>Kindly unauthorise and try deleting again.</b>"
+	
+	
+   if (!checkaccess(sObj,"action"))
+   {
+       return "<div style='display:none'>"+getFileText(serverPath+"/"+HTMLfilename+".htm")+"</div>"+request.getAttribute('noaccessHTML')+"";
+   }
+   
+
+  	
+
+
+  	var whereClause = new Array();
+	var whereClause_cust = new Array();
+  	
+  	for (var idx=0;idx<paramdata.fieldnames.length; idx++ )
+	{
+  		whereClause[idx]=paramdata.fieldnames[idx]+" = '"+_encode(paramdata.data[0][idx])+"'";
+		whereClause_cust[idx]="cust_"+paramdata.fieldnames[idx]+" = '"+_encode(paramdata.data[0][idx])+"'";
+	}
+  			
+//	appendFileText(serverPath+"/log/harshit.txt","\n inside 33333333 ");
+//	vmainData[request.getParameter("tablename")]= SQLResultset("Select * From "+ request.getParameter("tablename") + "  where " + whereClause.join(" and "));
+//	changed By Vismay on Monday, July 07, 2014 For Excluding LOB data types
+ 	vmainData[request.getParameter("tablename")]= SQLResultset("Select "+getMastesColumnNames(request.getParameter("tablename")).colnames+" From "+ request.getParameter("tablename") + "  where " + whereClause.join(" and "));
+    masterdata=vmainData[request.getParameter("tablename")]  			
+  			
+  	//Check for the custom fields if any then create a dataset of the same 
+    vSQLMeta = "SELECT * FROM iwz_cust_metadata WHERE upper(cust_table_name) = upper('"+request.getParameter("tablename")+"')";
+
+
+    vSQLMeta = SQLResultset(vSQLMeta);
+    if(vSQLMeta.recordcount!=0)
+    {
+//		var tt="Select * From custom_"+ request.getParameter("tablename") + "  where cust_"+whereClause.join(" and ")
+		var tt="Select * From custom_"+request.getParameter("tablename") + "  where cust_"+ whereClause.join(" and ")
+
+//		appendFileText(serverPath+"/log/harshit.txt","\n ttttt query : "+tt);
+	
+      custmasterdata = SQLResultset("Select * From custom_"+ request.getParameter("tablename") + "  where "+whereClause_cust.join(" and "));
+      custmasterdata.recordno=0;
+
+	  //Added by Harshit - To fill the dataset for Custom fields in Multi modify
+		cust_vmainData["custom_"+request.getParameter("tablename")]=SQLResultset("Select * From custom_"+request.getParameter("tablename") + "  where "+ whereClause_cust.join(" and "));
+		cust_vmainData.recordno=0;
+    }
+	
+      	 //get the dataset for the child tables
+  	for(key in DBSchema.foreignkey[request.getParameter("tablename")])
+    {
+      whereClause=[]
+      //get column names
+// 	  appendFileText(serverPath+"/log/mukesh.txt","\n  in getTableFieldData key "  + key);
+      //Create a where clause based on the mapping in dbschema
+      for (var idx=0;idx<paramdata.fieldnames.length; idx++ )
+  	   whereClause[idx]=getDbFkey(request.getParameter("tablename"),key,paramdata.fieldnames[idx])+" = '"+_encode(paramdata.data[0][idx])+"'";
+  	   
+  	   appendFileText(serverPath+"/log/mukesh.txt","\n  after for looop " +"Select * From "+ key + "  where " + whereClause.join(" and ") );
+	   	vmainData[key]= SQLResultset("Select * From "+ key + "  where " + whereClause.join(" and "));
+    }
+     
+    
+// 	masterdata.recordno=0;
+// 	appendFileText(serverPath+"/log/mukesh.txt","\n   action "  + action );
+	return getFileText(serverPath+"/"+HTMLfilename+".htm");
+	
+}
+
+
+
+
+function getTableCreatedBy(fldname,tname)
+{	if (action == "modify" || action == "delete" || _action ) 
+	{
+		return vmainData[tname].fieldbyname(fldname);
+	}
+	return userObj.userid;	
+}
+
+function getTableBranchcode(fldname)
+{	if (action == "modify" || action == "delete" || _action ) 
+	{
+		return vmainData[tname].fieldbyname(fldname);
+	}
+	return userObj.branch_code;	
+}
+
+function getTableSystemDate(fldname,tname)
+{	if (action == "modify" || action == "delete"  ) 
+	{
+		return vmainData[tname].fieldbyname(fldname)
+	}
+	return getServerDate();	
+} 
+
+
+function readonlytext(afldname,atabname)
+{	if ((DBSchema.primarykey[atabname].indexOf(afldname)>=0) && ((action == "modify") || (action == "delete")))
+	{
+		return "disabled";
+	}
+	return "";
+}
+
+function readonlyfield(afldname,atabname)
+{	if ((DBSchema.readonly[atabname].indexOf(afldname)>=0) && ((action == "modify") || (action == "delete")))
+	{
+		return "disabled";
+	}
+	return "";
+}
+
+function onServerModify(data)
+{	
+	var JObjdata = eval('(' + data + ')');
+
+	var vViewname=JObjdata.viewname;
+ 	var vViewpath=JObjdata.viewpath;
+ 	var vViewId = JObjdata.v;
+ 	var retStatus = ""
+ 	var _ign_mast_prc_con = JObjdata._ign_mast_prc_con;
+ 	var sObj = vViewpath+"::"+vViewname+"::Modify";
+ 	// if (!checkaccess(sObj,"action")) return request.getAttribute('noaccessHTML');
+	var JString = JSON.stringify(JObjdata.JString);
+	modifytablename = JObjdata.tablename;
+	JString = decodeEscapeCharacters(JString);
+	modifyparamdata = eval('(' + JString + ')'); 
+	
+	var obj={};
+	obj.paramdata=modifyparamdata;
+	obj.scr_ref = vViewId;
+	obj.action="before:save:modify";
+	obj._ignore_prc_con=(_ign_mast_prc_con||'n')	
+	var valArr = iwebz.execProcessValidation(obj);
+	
+	if(valArr.status != "success")
+		return JSON.stringify(valArr);
+
+	retStatus = modifyRecord(modifytablename, modifyparamdata,"modify");
+	
+	try
+	{
+		retStatus = eval('('+retStatus+')')
+	}
+	catch(err)
+	{
+		return '{status:"unsuccess",error:"Error while modifying the record.",msg:"' + err.message + '" }'
+	}
+	if(retStatus.status=="unsuccess")
+		return '{status:"unsuccess",error:"'+retStatus.error+'",msg:"" }'
+	else
+	{
+		obj={};
+		obj.paramdata=modifyparamdata;
+		obj.scr_ref = vViewId;
+		obj.action="after:save:modify";
+		obj._ignore_prc_con=(_ign_mast_prc_con||'n')	
+		var valArr = iwebz.execProcessValidation(obj);
+// 		if(valArr.status != "success")
+// 	   	return JSON.stringify(valArr);	
+
+	  return JSON.stringify(retStatus); 	
+	}
+}
+
+
+
+
+
+function getMasterScreenDelete()
+{	
+	action="delete";
+	var vViewname=request.getParameter("viewname");
+ 	var vViewpath=request.getParameter("viewpath");
+ 	var vViewId=request.getParameter("v");
+ 	var cViewId = request.getParameter("cv");
+ 	var sObj = vViewpath+"::"+vViewname+"::Delete";
+ 	var colnames ="";
+ 	if (!checkaccess(sObj,"action")) return request.getAttribute('noaccessHTML');
+	var JString = request.getParameter("JString");
+	
+	JString = decodeEscapeCharacters(JString);
+	var paramdata = eval('(' + JString + ')');
+	var HTMLfilename = ""+ request.getParameter("screenname");
+	// Changed by Aarti
+	var checkValidation ="";
+	var check_whereClause ="";
+	for (var idx=0;idx<paramdata.fieldnames.length; idx++ )
+	{
+		check_whereClause = check_whereClause+" and "+paramdata.fieldnames[idx]+" = '"+paramdata.data[0][idx]+"' "
+	}
+	checkValidation = " select *  from "+request.getParameter("tablename")+" where 1=1 "+check_whereClause;
+	checkValidation = SQLResultset(checkValidation)
+	
+	if (checkValidation.data[checkValidation.recordno][checkValidation.deleted] == 'Y')
+	return "<b>Record is already deleted.</b>"
+	
+	if (checkValidation.data[checkValidation.recordno][checkValidation.auth_status] == '1' || checkValidation.data[checkValidation.recordno][checkValidation.authorization_status] == '1')
+	return "<b>Record has been authorised.<Br>Kindly unauthorise and try deleting again.</b>"
+
+	var obj={};
+	var epViewid = (cViewId)?cViewId:vViewId
+	obj.paramdata=paramdata;
+	obj.scr_ref = epViewid;
+	obj.action="before:"+action;
+	var valArr = iwebz.execProcessValidation(obj);
+	
+	if(valArr.status != "success")
+		return valArr.error;
+		
+	var whereClause = new Array();
+	var whereClause_cust = new Array();
+
+	for (var idx=0;idx<paramdata.fieldnames.length; idx++ )
+	{
+		whereClause[idx]=paramdata.fieldnames[idx]+" = '"+_encode(paramdata.data[0][idx])+"'";
+		whereClause_cust[idx]="cust_"+paramdata.fieldnames[idx]+" = '"+_encode(paramdata.data[0][idx])+"'";
+	}
+
+    response=getMastesColumnNames(request.getParameter("tablename"));
+    if(response.status=="success")
+    {
+//      	masterdata = SQLResultset("Select "+response.colnames+" From "+ request.getParameter("tablename") + "  where " + whereClause.join(" and "));
+     	
+     	vmainData[request.getParameter("tablename")]= SQLResultset("Select * From "+ request.getParameter("tablename") + "  where " + whereClause.join(" and "));
+    
+    	masterdata=vmainData[request.getParameter("tablename")] 
+	}
+  	else
+  	{
+	   	masterdata = SQLResultset("Select  * From "+ request.getParameter("tablename") + "  where " + whereClause.join(" and "));
+   	}
+	   	
+	//Check for the custom fields if any then create a dataset of the same
+  vSQLMeta = "SELECT * FROM iwz_cust_metadata WHERE cust_table_name = '"+_encode(request.getParameter("tablename"))+"'";
+  
+  vSQLMeta= SQLResultset(vSQLMeta);
+  if(vSQLMeta.recordcount!=0)
+  {	
+    custmasterdata = SQLResultset("Select * from custom_"+ request.getParameter("tablename") + "  where " + whereClause_cust.join(" and "));
+    custmasterdata.recordno=0;
+
+	//Added by Harshit - 28032014 - To populate the custom dataset while "delete" action
+	cust_vmainData["custom_"+request.getParameter("tablename")]=SQLResultset("Select * From custom_"+request.getParameter("tablename") + "  where "+ whereClause_cust.join(" and "));
+	cust_vmainData.recordno=0;
+
+  }
+  
+  	for(key in DBSchema.foreignkey[request.getParameter("tablename")])
+    {
+      whereClause=[]
+      //get column names
+// 	  appendFileText(serverPath+"/log/mukesh.txt","\n  in getTableFieldData key "  + key);
+      //Create a where clause based on the mapping in dbschema
+      for (var idx=0;idx<paramdata.fieldnames.length; idx++ )
+  	   whereClause[idx]=getDbFkey(request.getParameter("tablename"),key,paramdata.fieldnames[idx])+" = '"+_encode(paramdata.data[0][idx])+"'";
+  	   
+//   	   appendFileText(serverPath+"/log/mukesh.txt","\n  after for looop " +"Select * From "+ key + "  where " + whereClause.join(" and ") );
+	   	vmainData[key]= SQLResultset("Select * From "+ key + "  where " + whereClause.join(" and "));
+    }
+    
+	masterdata.recordno=0;
+	return getFileText(serverPath+"/"+HTMLfilename+".htm");
+	
+}
+
+function onServerDelete(data)
+{	
+	var response=''
+	
+	var JObjdata = eval('(' + data + ')');
+	
+	var vViewname=JObjdata.viewname;
+ 	var vViewpath=JObjdata.viewpath;
+ 	var sObj = vViewpath+"::"+vViewname+"::Delete";
+ 	var vViewId = JObjdata.v;
+	var _ign_mast_prc_con = JObjdata._ign_mast_prc_con;
+ 	// if (!checkaccess(sObj,"action")) return request.getAttribute('noaccessHTML');
+	var JString = JSON.stringify(JObjdata.JString);
+	modifytablename = JObjdata.tablename;
+  	var retStatus;	
+	JString = decodeEscapeCharacters(JString);
+	modifyparamdata = eval('(' + JString + ')'); 
+  
+  //before process validation
+	var obj={};
+	obj.paramdata=modifyparamdata;
+	obj.scr_ref = vViewId;
+	obj.action="before:save:deleted";
+	obj._ignore_prc_con=(_ign_mast_prc_con||'n')	
+	var valArr = iwebz.execProcessValidation(obj);
+
+	if(valArr.status != "success")
+		return JSON.stringify(valArr);
+
+	retStatus = modifyRecord(modifytablename, modifyparamdata,"deleted");
+  
+	try
+	{
+		retStatus = eval('('+retStatus+')')
+	}
+	catch(e)
+	{
+		return '{status:"unsuccess",error:"Error while deleting the record.",msg:"" }'
+	}
+	
+  if(retStatus.status=="unsuccess")
+		return '{status:"unsuccess",error:"'+retStatus.error+'",msg:"" }'
+	else
+	{
+    //after process validation
+		obj={};
+		obj.paramdata=modifyparamdata;
+		obj.scr_ref = vViewId;
+		obj.action="after:save:deleted";
+		obj._ignore_prc_con=(_ign_mast_prc_con||'n')	
+		var valArr = iwebz.execProcessValidation(obj);
+// 		if(valArr.status != "success")
+// 		  return JSON.stringify(valArr);	
+    return '{"status":"success","msg":"","error":"Records deleted successfully."}';
+//	return modifyRecord(modifytablename, modifyparamdata,"deleted"); 	
+	}
+}
+
+function onServerUnDelete()
+{	
+	var vViewname=request.getParameter("viewname");
+ 	var vViewpath=request.getParameter("viewpath");
+ 	var vViewId = request.getParameter("v");
+ 	action = request.getParameter("action");
+ 	 var _ign_mast_prc_con = request.getParameter("_ign_mast_prc_con");
+ 	var sObj = vViewpath+"::"+vViewname+"::UnDelete";
+ 	//if (!checkaccess(sObj,"action")) return request.getAttribute('noaccessHTML');
+ 	if (!checkaccess(sObj,"action"))  return '{"status":"unsuccess","msg":"","error":"You do not have access to this functionality.Please contact the administrator."}';
+ 	
+	var JString = request.getParameter("JString");
+	modifytablename = request.getParameter("tablename");
+  		
+	JString = decodeEscapeCharacters(JString); 
+	modifyparamdata = eval('(' + JString + ')');
+	
+  var valMsg=DBSchema.transValidate(modifytablename,'undelete',modifyparamdata);
+	if(valMsg!="") return '{"status":"unsuccess","msg":"","error":"'+valMsg+'"}';
+	var obj={};
+	obj.paramdata=modifyparamdata;
+	obj.scr_ref = vViewId;
+	obj.action="before:"+action;
+	obj._ignore_prc_con=(_ign_mast_prc_con||'n')	
+	var valArr = iwebz.execProcessValidation(obj);
+	
+	if(valArr.status != "success")
+		return JSON.stringify(valArr);
+
+	var whereClause = new Array();
+	for (var idx=0;idx<modifyparamdata.fieldnames.length; idx++)
+		  if (DBSchema.primarykey[modifytablename].indexOf(modifyparamdata.fieldnames[idx])>=0)
+		 			whereClause[whereClause.length]=modifyparamdata.fieldnames[idx]+" = '"+_encode(modifyparamdata["data"][0][idx])+"'";	
+  if(iwebz.soft_delete)
+    var updnewSql = "update "+ modifytablename + "  set deleted='N' where " + whereClause.join(" and ");
+  else
+    return '{"status":"unsuccess","msg":"System is Running on Hard Delete","error":"System is Running on Hard Delete"}';
+  var audResp= makeAudit(
+    {
+      issql:true
+      ,tab:modifytablename
+      ,opr:"undelete"
+      ,res:"undelete"
+      ,user:userObj.user_id
+      ,sqlwhr:whereClause.join(" and ")
+    });      
+  updnewSql= "Begin \n "+updnewSql+";\n"+audResp+"; \n End;";         
+ 
+//  	var resultStr = execSQL(updnewSql);
+// 	resultStr = encodeEscapeCharacters(resultStr);
+// 	return resultStr;
+	var resultStr = execSQLResultset(updnewSql);
+	 if(resultStr.status=="unsuccess")
+	  	return '{"status":"unsuccess","msg":"","error":"'+ resultStr.error+'"}';
+	 else
+	 {
+		obj={};
+		obj.paramdata=modifyparamdata;
+		obj.scr_ref = vViewId;
+		obj.action="after:"+action;
+		obj._ignore_prc_con=(_ign_mast_prc_con||'n')	
+		var valArr = iwebz.execProcessValidation(obj);
+		
+// 		if(valArr.status != "success")
+// 		return JSON.stringify(valArr);
+		
+		return '{"status":"success","msg":"'+ resultStr.msg+'","error":""}';
+		 
+	 } 			
+	  			
+	  		
+}
+
+/**
+ *@event      FunctionName.
+ *@desc       Function Description
+ *@author     
+ *@dated      
+ *@param      Param1{String} - param Description
+ *@param      Param1{String} - param Description
+ *@validation 
+              * Val Desc                   
+ *@return     Return Data Desc
+ **/
+function getNewWhereInClause(vdata)
+{
+	var whereClause =[];
+	var tempClause=[];
+	for (var vdx=0;vdx<vdata.data.length; vdx++ )
+	{
+	 tempClause=[];
+    for(var idx=0;idx<vdata.fieldnames.length; idx++ )
+    {
+      tempClause[tempClause.length]=vdata.fieldnames[idx]+"='"+ _encode(vdata.data[vdx][idx])+"'" ;
+    }  
+   whereClause[whereClause.length]="("+tempClause.join(' and ')+")";
+  }
+  if(whereClause.length>0) return " and ("+whereClause.join(' or ')+")";	
+	else 
+	return "";
+}
+
+
+/**
+ *@event      onMasterAuth.
+ *@desc       This function authorises the master
+ *@author     vikas
+ *@dated      14-10-2009
+ **/
+function onMasterAuth(data)
+{
+try{
+	var JObjdata = eval('(' + data + ')');
+
+	var JString = JObjdata.JString;
+	var vTablename = JObjdata.tablename;
+	var _ign_mast_prc_con = JObjdata._ign_mast_prc_con;
+	var vViewId = JObjdata.v;
+	var vChkSQL="";
+	var vSQL="";
+	var vWhr="";
+	var whr_err=[];
+	var audResp="";
+	var user_cnt= 0;
+	var auth_cnt =0;
+	var upd_cnt = 0;
+	var final_str="";
+	var del_cnt=0
+	var cnt = 0;
+	var response="";
+	var vViewname=JObjdata.viewname;
+	var vViewpath=JObjdata.viewpath;
+//	master_log(JString);
+//	master_log(vViewId);
+	master_log("onMasterAuth vTablename : "+vTablename)
+	
+	var sObj = vViewpath+"::"+vViewname+"::Auth";
+  // if (!checkaccess(sObj,"action"))  return '{"status":"unsuccess","msg":"","error":"You do not have access to this functionality.Please contact the administrator."}';
+
+	// var paramdataAdd = eval('(' + JString + ')');
+	var paramdataAdd = JString ;
+	// if(paramdataAdd.data.length==0)return '{"status":"unsuccess","msg":"","error":"No data passed"}';
+
+	var obj={};
+	obj.paramdata=paramdataAdd;
+	obj.scr_ref = vViewId;
+	obj.action="before:auth";
+	obj._ignore_prc_con=(_ign_mast_prc_con||'n')	
+	var valArr = iwebz.execProcessValidation(obj);
+	if(valArr.status != "success")
+		return JSON.stringify(valArr);
+	// code to create where  clause
+	var arr_whereClause = []
+	arr_primarykeys = DBSchema.primarykey[vTablename].split(",")
+	for (var vdx = 0;vdx < arr_primarykeys.length; vdx++ )
+		arr_whereClause[arr_whereClause.length] = " upper(" + arr_primarykeys[0] + ") = upper('" + paramdataAdd[arr_primarykeys[0]] + "')";
+	// code to create where  clause ends
+
+	vWhr = arr_whereClause.join(" and ")
+	if(vWhr=="") return '{"status":"unsuccess","msg":"","error":"Error in creating conditional statement"}';
+
+	param_qry = getSysParameter("ENTITYMAKERCHECKER","FALSE")
+
+	if( param_qry.toUpperCase() == "TRUE" )
+	{
+		vChkSQL = SQLResultset("select * from log_"+vTablename+" where sys_operation in ('add','modify') and " + vWhr + " and sys_auditdate = (select max(sys_auditdate) from log_"+vTablename+" where sys_operation in ('add','modify') and " + vWhr + ")");
+
+		for(var i=0;i < vChkSQL.recordcount; i++)
+		{
+			vChkSQL.recordno = i;
+			
+			if( vChkSQL.fieldbyname("sys_userid") == userObj.user_id && vChkSQL.fieldbyname(authcolnames[vTablename].auth_status.column_name ).toUpperCase() != authcolnames[vTablename].auth_status.column_value.auth )
+			{
+				user_cnt = user_cnt + 1;
+				continue;
+			}
+			if( vChkSQL.fieldbyname(authcolnames[vTablename].auth_status.column_name).toUpperCase() == authcolnames[vTablename].auth_status.column_value.auth )
+			{
+				auth_cnt = auth_cnt + 1;
+				continue;
+			}
+			if( vChkSQL.fieldbyname(authcolnames[vTablename].auth_status.column_name ).toUpperCase() == authcolnames[vTablename].auth_status.column_value.unauth && ( vChkSQL.fieldbyname("sys_userid") != userObj.user_id || vChkSQL.fieldbyname("sys_userid") == "" ) )
+			{
+				upd_cnt = upd_cnt + 1;
+				var tempCond = [] ;
+				for(var j = 0;j < paramdataAdd.fieldnames.length; j++)
+				{
+					tempCond[tempCond.length] = " " + paramdataAdd["fieldnames"][j] + " = '" + _encode(vChkSQL.fieldbyname(paramdataAdd["fieldnames"][j])) + "'";
+		 		}
+		 		whr_err[whr_err.length] = " (" + tempCond.join (" and ")+ " ) "
+				continue;
+			}
+	  	}
+		
+		if(auth_cnt!=0)
+			final_str = final_str + "<br> "+auth_cnt+" Record(s) are already authorised.";
+		
+		if(user_cnt!=0)
+			final_str = final_str + "<br> "+user_cnt+" Record(s) created by user id:"+userObj.user_id+" can be authorised only from some other login.";
+
+		if( auth_cnt == 0 && user_cnt == 0 && vWhr.length > 0)
+		{
+			whr_err = whr_err.join(" or ");
+			vSQL = "update "+vTablename+" set " + authcolnames[vTablename].auth_by.column_name + " = '" + userObj.userid + "', " + authcolnames[vTablename].auth_on.column_name + " = sysdate, " + authcolnames[vTablename].auth_status.column_name + " = '" + authcolnames[vTablename].auth_status.column_value.auth + "' where 1=1 and " + vWhr + ";";
+		  	
+			audResp = makeAudit(
+			{
+				issql:true
+				,tab:vTablename
+				,opr:"update"
+				,res:"Authorisation"
+				,cols:paramdataAdd.fieldnames.join(',')
+				,user:userObj.user_id
+				,sqlwhr:" 1=1 and " + vWhr
+			});
+			vSQL=vSQL+""+audResp+";";
+			vSQL="Begin "+vSQL+" End;"
+			
+			vSQL = execSQLResultset(vSQL);
+			
+	  		if(vSQL.status=="unsuccess")
+	  			return '{"status":"unsuccess","msg":"","error":"'+vSQL.error+'"}';
+	  			
+	  		if(upd_cnt!=0)
+				final_str = final_str +"<br> "+ upd_cnt +" Record(s) authorised successfully."	
+		}
+	  	if ( final_str.trim() != "" )
+			return '{"status":"unsuccess","msg":"'+final_str+'","error":""}';
+		else
+			return '{"status":"success","msg":"","error":""}';
+ 	}
+ 	else
+ 	{
+		response = getMastesColumnNames(vTablename);
+		// if( response.status == "success" )
+	  		// vChkSQL = SQLResultset("select "+response.colnames +" from "+vTablename+" where 1=1 "+vWhr);
+	  	// else
+	 	   	
+			vChkSQL = SQLResultset("select * from log_"+vTablename+" where sys_operation in ('add','modify') and " + vWhr + " and sys_auditdate = (select max(sys_auditdate) from log_"+vTablename+" where sys_operation in ('add','modify') and " + vWhr + ")");
+//		  	master_log(JSON.stringify(vChkSQL))	
+	  	for(var i=0;i<vChkSQL.recordcount;i++)
+	  	{
+		  	vChkSQL.recordno =i;
+			if ( authcolnames[vTablename].auth_status.column_name == authcolnames[vTablename].auth_status.column_value.auth )
+		  	{
+				auth_cnt = auth_cnt +1;
+				continue;
+		  	}
+			
+			if( vChkSQL.fieldbyname(authcolnames[vTablename].auth_status.column_name ).toUpperCase() == authcolnames[vTablename].auth_status.column_value.unauth || vChkSQL.fieldbyname(authcolnames[vTablename].auth_status.column_name ) == "" )
+		 	{
+			 	upd_cnt = upd_cnt +1;
+		 	}
+		 	var tempCond= [] ;
+		 	for(var j=0;j<paramdataAdd.fieldnames.length;j++)
+		 	{	
+		 		tempCond[tempCond.length] = " "+paramdataAdd["fieldnames"][j] + " = '" +_encode(vChkSQL.fieldbyname(paramdataAdd["fieldnames"][j]))+"'";
+	 		}
+	 		whr_err[whr_err.length] = " (" + tempCond.join (" and ")+ " ) "
+	  	}
+	  	
+	  	if( auth_cnt != 0 )
+			final_str = final_str + "<br> "+auth_cnt+" Record(s) are already authorised.";
+	  	
+		if( del_cnt != 0 )
+			 final_str = final_str + "<br> Deleted records cannot be authorised.";
+	  	
+	  	if( auth_cnt == 0 && user_cnt == 0 && vWhr.length > 0)
+	  	{
+	  		whr_err = whr_err.join(" or ");
+			vSQL = "update "+vTablename+" set " + authcolnames[vTablename].auth_by.column_name + " = '" + userObj.userid + "', " + authcolnames[vTablename].auth_on.column_name + " = sysdate, " + authcolnames[vTablename].auth_status.column_name + " = '" + authcolnames[vTablename].auth_status.column_value.auth + "' where 1=1 and " + vWhr + ";";
+		  	
+			audResp = makeAudit(
+			{
+				issql:true
+				,tab:vTablename
+				,opr:"update"
+				,res:"Authorisation"
+				,cols:paramdataAdd.fieldnames.join(',')
+				,user:userObj.user_id
+				,sqlwhr:" 1=1 and " + vWhr
+			});
+			vSQL=vSQL+""+audResp+";";
+			vSQL="Begin "+vSQL+" End;"
+
+			vSQL = execSQLResultset(vSQL);
+	  		if(vSQL.status == "unsuccess")
+	  			return '{"status":"unsuccess","msg":"","error":"'+vSQL.error+'"}';
+	  		else
+	  		{
+				obj={};
+				obj.paramdata=paramdataAdd;
+				obj.scr_ref = vViewId;
+				obj.action="after:auth";
+				obj._ignore_prc_con=(_ign_mast_prc_con||'n')	
+				var valArr = iwebz.execProcessValidation(obj);
+				
+				if( valArr.status != "success" )
+					return JSON.stringify(valArr);
+				
+				if( upd_cnt !=0 )
+					final_str = final_str +" <br> " + upd_cnt + " Record(s) authorised successfully."
+			}
+		}
+	  	if ( final_str.trim() != "" )
+			return '{"status":"unsuccess","msg":"'+final_str+'","error":""}';
+		else
+			return '{"status":"success","msg":"","error":""}';
+	}
+	}
+	catch(err)
+	{
+		dlog("Error occured in onMasterAuth " + err.stack,false)
+		return '{"status":"unsuccess","msg":"'+ err.message + '","error":"'+ err.message + '"}';
+	}
+}
+
+
+/**
+ *@event      onMasterUnAuth.
+ *@desc       This function authorises the master
+ *@author     vikas
+ *@dated      14-10-2009
+ **/
+function onMasterUnAuth(data)
+{
+try{
+	var JObjdata = eval('(' + data + ')');
+
+	var JString = JObjdata.JString;
+	var vTablename = JObjdata.tablename;
+	var _ign_mast_prc_con = JObjdata._ign_mast_prc_con;
+	var vViewId = JObjdata.v;
+	var vChkSQL="";
+	var vSQL="";
+	var vWhr="";
+	var whr_err=[];
+	var audResp="";
+	var user_cnt= 0;
+	var un_auth_cnt =0;
+	var upd_cnt = 0;
+	var final_str="";
+	var del_cnt=0
+	var cnt = 0;
+	var response="";
+	var vViewname=JObjdata.viewname;
+	var vViewpath=JObjdata.viewpath;
+//	master_log(JString);
+//	master_log(vViewId);
+	master_log("onMasterAuth vTablename : "+vTablename)
+	
+	var sObj = vViewpath+"::"+vViewname+"::Auth";
+  // if (!checkaccess(sObj,"action"))  return '{"status":"unsuccess","msg":"","error":"You do not have access to this functionality.Please contact the administrator."}';
+
+	// var paramdataAdd = eval('(' + JString + ')');
+	var paramdataAdd = JString ;
+	// if(paramdataAdd.data.length==0)return '{"status":"unsuccess","msg":"","error":"No data passed"}';
+
+	var obj={};
+	obj.paramdata=paramdataAdd;
+	obj.scr_ref = vViewId;
+	obj.action="before:auth";
+	obj._ignore_prc_con=(_ign_mast_prc_con||'n')	
+	var valArr = iwebz.execProcessValidation(obj);
+	if(valArr.status != "success")
+		return JSON.stringify(valArr);
+	// code to create where  clause
+	var arr_whereClause = []
+	arr_primarykeys = DBSchema.primarykey[vTablename].split(",")
+	for (var vdx = 0;vdx < arr_primarykeys.length; vdx++ )
+		arr_whereClause[arr_whereClause.length] = " upper(" + arr_primarykeys[0] + ") = upper('" + paramdataAdd[arr_primarykeys[0]] + "')";
+	// code to create where  clause ends
+
+	vWhr = arr_whereClause.join(" and ")
+	if(vWhr=="") return '{"status":"unsuccess","msg":"","error":"Error in creating conditional statement"}';
+
+	param_qry = getSysParameter("ENTITYMAKERCHECKER","FALSE")
+
+	if( param_qry.toUpperCase() == "TRUE" )
+	{
+		vChkSQL = SQLResultset("select * from log_"+vTablename+" where sys_operation in ('add','modify') and " + vWhr + " and sys_auditdate = (select max(sys_auditdate) from log_"+vTablename+" where sys_operation in ('add','modify') and " + vWhr + ")");
+
+		for(var i=0;i < vChkSQL.recordcount; i++)
+		{
+			vChkSQL.recordno = i;
+			
+			if( vChkSQL.fieldbyname("sys_userid") == userObj.user_id && vChkSQL.fieldbyname(authcolnames[vTablename].auth_status.column_name ).toUpperCase() != authcolnames[vTablename].auth_status.column_value.unauth )
+			{
+				user_cnt = user_cnt + 1;
+				continue;
+			}
+			if( vChkSQL.fieldbyname(authcolnames[vTablename].auth_status.column_name).toUpperCase() == authcolnames[vTablename].auth_status.column_value.unauth )
+			{
+				un_auth_cnt = un_auth_cnt + 1;
+				continue;
+			}
+			if( vChkSQL.fieldbyname(authcolnames[vTablename].auth_status.column_name ).toUpperCase() == authcolnames[vTablename].auth_status.column_value.unauth && ( vChkSQL.fieldbyname("sys_userid") != userObj.user_id || vChkSQL.fieldbyname("sys_userid") == "" ) )
+			{
+				upd_cnt = upd_cnt + 1;
+				var tempCond = [] ;
+				for(var j = 0;j < paramdataAdd.fieldnames.length; j++)
+				{
+					tempCond[tempCond.length] = " " + paramdataAdd["fieldnames"][j] + " = '" + _encode(vChkSQL.fieldbyname(paramdataAdd["fieldnames"][j])) + "'";
+		 		}
+		 		whr_err[whr_err.length] = " (" + tempCond.join (" and ")+ " ) "
+				continue;
+			}
+	  	}
+		
+		if(un_auth_cnt!=0)
+			final_str = final_str + "<br> "+un_auth_cnt+" Record(s) are already authorised.";
+		
+		if(user_cnt!=0)
+			final_str = final_str + "<br> "+user_cnt+" Record(s) created by user id:"+userObj.user_id+" can be unauthorised only from some other login.";
+
+		if( un_auth_cnt == 0 && user_cnt == 0 && vWhr.length > 0)
+		{
+			whr_err = whr_err.join(" or ");
+			vSQL = "update "+vTablename+" set " + authcolnames[vTablename].auth_by.column_name + " = '" + userObj.userid + "', " + authcolnames[vTablename].auth_on.column_name + " = sysdate, " + authcolnames[vTablename].auth_status.column_name + " = '" + authcolnames[vTablename].auth_status.column_value.unauth + "' where 1=1 and " + vWhr + ";";
+		  	
+			audResp = makeAudit(
+			{
+				issql:true
+				,tab:vTablename
+				,opr:"update"
+				,res:"Authorisation"
+				,cols:paramdataAdd.fieldnames.join(',')
+				,user:userObj.user_id
+				,sqlwhr:" 1=1 and " + vWhr
+			});
+			vSQL=vSQL+""+audResp+";";
+			vSQL="Begin "+vSQL+" End;"
+			
+			vSQL = execSQLResultset(vSQL);
+			
+	  		if(vSQL.status=="unsuccess")
+	  			return '{"status":"unsuccess","msg":"","error":"'+vSQL.error+'"}';
+	  			
+	  		if(upd_cnt!=0)
+				final_str = final_str +"<br> "+ upd_cnt +" Record(s) authorised successfully."	
+		}
+	  	if ( final_str.trim() != "" )
+			return '{"status":"unsuccess","msg":"'+final_str+'","error":""}';
+		else
+			return '{"status":"success","msg":"","error":""}';
+ 	}
+ 	else
+ 	{
+		response = getMastesColumnNames(vTablename);
+		// if( response.status == "success" )
+	  		// vChkSQL = SQLResultset("select "+response.colnames +" from "+vTablename+" where 1=1 "+vWhr);
+	  	// else
+	 	   	
+			vChkSQL = SQLResultset("select * from log_"+vTablename+" where sys_operation in ('add','modify') and " + vWhr + " and sys_auditdate = (select max(sys_auditdate) from log_"+vTablename+" where sys_operation in ('add','modify') and " + vWhr + ")");
+//		  	master_log(JSON.stringify(vChkSQL))	
+	  	for(var i=0;i<vChkSQL.recordcount;i++)
+	  	{
+		  	vChkSQL.recordno =i;
+			if ( authcolnames[vTablename].auth_status.column_name == authcolnames[vTablename].auth_status.column_value.unauth )
+		  	{
+				un_auth_cnt = un_auth_cnt +1;
+				continue;
+		  	}
+			
+			if( vChkSQL.fieldbyname(authcolnames[vTablename].auth_status.column_name ).toUpperCase() == authcolnames[vTablename].auth_status.column_value.unauth || vChkSQL.fieldbyname(authcolnames[vTablename].auth_status.column_name) == "" )
+		 	{
+			 	upd_cnt = upd_cnt +1;
+		 	}
+		 	var tempCond = [] ;
+		 	for(var j=0;j<paramdataAdd.fieldnames.length;j++)
+		 	{	
+		 		tempCond[tempCond.length] = " "+paramdataAdd["fieldnames"][j] + " = '" +_encode(vChkSQL.fieldbyname(paramdataAdd["fieldnames"][j]))+"'";
+	 		}
+	 		whr_err[whr_err.length] = " (" + tempCond.join (" and ")+ " ) "
+	  	}
+	  	
+	  	if( un_auth_cnt != 0 )
+			final_str = final_str + "<br> "+un_auth_cnt+" Record(s) are already authorised.";
+	  	
+		if( del_cnt != 0 )
+			 final_str = final_str + "<br> Deleted records cannot be authorised.";
+	  	
+	  	if( un_auth_cnt == 0 && user_cnt == 0 && vWhr.length > 0)
+	  	{
+	  		whr_err = whr_err.join(" or ");
+			vSQL = "update "+vTablename+" set " + authcolnames[vTablename].auth_by.column_name + " = '" + userObj.userid + "', " + authcolnames[vTablename].auth_on.column_name + " = sysdate, " + authcolnames[vTablename].auth_status.column_name + " = '" + authcolnames[vTablename].auth_status.column_value.unauth + "' where 1=1 and " + vWhr + ";";
+		  	
+			audResp = makeAudit(
+			{
+				issql:true
+				,tab:vTablename
+				,opr:"update"
+				,res:"Authorisation"
+				,cols:paramdataAdd.fieldnames.join(',')
+				,user:userObj.user_id
+				,sqlwhr:" 1=1 and " + vWhr
+			});
+			vSQL=vSQL+""+audResp+";";
+			vSQL="Begin "+vSQL+" End;"
+
+			vSQL = execSQLResultset(vSQL);
+	  		if(vSQL.status == "unsuccess")
+	  			return '{"status":"unsuccess","msg":"","error":"'+vSQL.error+'"}';
+	  		else
+	  		{
+				obj={};
+				obj.paramdata=paramdataAdd;
+				obj.scr_ref = vViewId;
+				obj.action="after:auth";
+				obj._ignore_prc_con=(_ign_mast_prc_con||'n')	
+				var valArr = iwebz.execProcessValidation(obj);
+				
+				if( valArr.status != "success" )
+					return JSON.stringify(valArr);
+				
+				if( upd_cnt !=0 )
+					final_str = final_str +" <br> " + upd_cnt + " Record(s) authorised successfully."
+			}
+		}
+	  	if ( final_str.trim() != "" )
+			return '{"status":"unsuccess","msg":"'+final_str+'","error":""}';
+		else
+			return '{"status":"success","msg":"","error":""}';
+	}
+	}
+	catch(err)
+	{
+		dlog("Error occured in onMasterAuth " + err.stack,false)
+		return '{"status":"unsuccess","msg":"'+ err.message + '","error":"'+ err.message + '"}';
+	}
+}
+
+function getChargesParamValue(paramname)
+{
+	var vSQL = "select paramvalue from parameter where upper(paramname) = upper('"+_encode(paramname)+"')";
+	vSQL = SQLResultset(vSQL);
+	return vSQL.fieldbyname('paramvalue');
+}
+
+/*
+Function name : getGClientIDLen
+Function desc : Gets length of Global Client ID 
+Created on : 15th November 2011
+Created by : Kruti Gada
+*/
+function getGClientIDLen()
+{
+	var getGClientIDLength="select paramvalue from iwz_parameter where paramname='GlobalClientIDLength'";
+	getGClientIDLength=SQLResultset(getGClientIDLength);
+  if(getGClientIDLength.recordcount==0)
+    return ""
+	return getGClientIDLength.data[0][0];
+}
+
+/**
+ *@event      getMastesColumnNames.
+ *@desc       Get the column names of the table exculding the columns with BLOB datatype
+ *@author     Mohini
+ *@dated      12-07-2012 11:37:15 AM
+ *@param      tablename{String} - Name of the table whose columns are to be retrived
+ *@return     status 
+ **/
+function getMastesColumnNames(tablename)
+{
+  try
+  {
+    if(!tablename)
+        return {"status":"unsuccess","msg":"","error":"Table name not found."};
+   else
+    {
+     	var vSQL="SELECT  column_name FROM USER_TAB_COLUMNS  WHERE table_name = upper('"+_encode(tablename)+"') AND DATA_TYPE <>'BLOB' AND DATA_TYPE <> 'CLOB' AND DATA_TYPE <> 'LOB'";
+     	vSQL= SQLResultset(vSQL);
+      if(vSQL.recordcount==0)
+        return {"status":"unsuccess","msg":"","error":"Columns not found."};
+      else
+      {
+        return {"status":"success","msg":"","error":"","colnames":vSQL.data.toString()};
+      }  
+    }  
+  }
+  catch(error)
+  {
+    return {"status":"unsuccess","msg":"","error":"Error while executing."}; 
+  }
+}
+/**
+ *@event      getIPRestriction.
+ *@desc       gets validation for IP Address field
+ *@author     Kruti
+ *@dated      27-07-2012 15:49
+ *@return     Value for Validator
+ **/
+function getIPRestriction()
+{
+	var vSQL="SELECT paramvalue FROM iwz_parameter WHERE paramname='checkIPAddress' ";
+	vSQL=SQLResultset(vSQL);
+	var IPFlag=vSQL.fieldbyname("paramvalue");
+	if(IPFlag.toUpperCase()=='YES' || IPFlag.toUpperCase()=='Y' )
+		return "nonEmpty";
+	return ""	
+}
+
+
+  /**
+   *@event      onServerMultiAdd.
+   *@desc       Inserts records in to multiple tables
+   *@author     Vikas Prabhu
+   *@dated      30/10/2012 16:47:12
+   **/
+function onServerMultiAdd()
+{
+// 	appendFileText(serverPath+"/log/harshit.txt","\n inside onServerMultiAdd");
+	var vViewname=request.getParameter("viewname");
+ 	var vViewpath=request.getParameter("viewpath");
+ 	var vViewId = request.getParameter("v");
+ 	LogDebug("onServerMultiAdd - Viewname : "+vViewId);
+ 	var childret=null;
+ 	var ctkey="";
+ 	var whrclause;
+ 	var deletequery=[];
+//  	appendFileText(serverPath+"/log/harshit.txt","\n vViewname: "+vViewname+" vViewpath : "+vViewpath+" vViewId : "+vViewId);
+ 	var sObj = vViewpath+"::"+vViewname+"::Add";
+//  	appendFileText(serverPath+"/log/harshit.txt","\n sObj : "+sObj);
+//  	if (!checkaccess(sObj,"action")) return request.getAttribute('noaccessHTML');
+//  	appendFileText(serverPath+"/log/harshit.txt","\n after checkaccess ");
+ 	var JString = request.getParameter("JString");
+	var tablename = request.getParameter("tablename");
+	JString = decodeEscapeCharacters(JString);
+	var paramdataAdd = eval('(' + JString + ')');
+	
+// 	appendFileText(serverPath+"/log/mukesh.txt","\n paramdataAdd : "+JSON.stringify(paramdataAdd));
+	
+// 	appendFileText(serverPath+"/log/harshit.txt","\n tablename : "+tablename);
+// 	appendFileText(serverPath+"/log/harshit.txt","\n paramdataAdd: "+JSON.stringify(paramdataAdd));
+// 	appendFileText(serverPath+"/log/varsha.txt","\n paramdataAdd[tablename]: "+JSON.stringify(paramdataAdd[tablename]));
+// 	var ret=getInsertData(paramdataAdd[tablename],tablename)
+
+
+// added by mukesh on 12-12-2014 for adding user id in created by coulmn-start
+	
+// 	appendFileText(serverPath+"/log/mukesh.txt","\n master paramdataAdd : "+JSON.stringify(paramdataAdd));
+// 	appendFileText(serverPath+"/log/mukesh.txt","\n master tablename : "+tablename);
+// 	appendFileText(serverPath+"/log/mukesh.txt","\n data.length : "+paramdataAdd[tablename].data.length);
+	
+	for(var i=0;i<paramdataAdd[tablename].data.length;i++)
+	{
+		paramdataAdd[tablename].data[i]["created_by"]=userObj.user_id
+		paramdataAdd[tablename].data[i].fieldnames[paramdataAdd[tablename].data[i].fieldnames.length]="created_by"
+	}
+
+// added by mukesh on 12-12-2014 for adding user id in created by coulmn-end
+	
+	var ret=getInsertTableData(paramdataAdd,tablename)
+// 	appendFileText(serverPath+"/log/harshit.txt","\n after call to getInsertTableData");
+// 	appendFileText(serverPath+"/log/harshit.txt","\n tablename : "+tablename);
+	var retObj = eval('(' + ret+ ')');
+// 	appendFileText(serverPath+"/log/harshit.txt","\n retObj : "+JSON.stringify(retObj));
+
+	//check if parent records is success
+	if(retObj.status=="unsuccess")return ret;
+
+ 	return ret;
+}
+
+
+
+  /**
+   *@event      onServerMultiModify.
+   *@desc       Update records in to multiple tables
+   *@author     Mukesh Bhupta
+   *@dated      07/12/2012
+   **/
+
+function onServerMultiModify()
+{	
+	var vViewname=request.getParameter("viewname");
+ 	var vViewpath=request.getParameter("viewpath");
+ 	var sObj = vViewpath+"::"+vViewname+"::Modify";
+ 	LogDebug(sObj);
+ 	if (!checkaccess(sObj,"action")) return request.getAttribute('noaccessHTML');
+	var JString = request.getParameter("JString");
+	modifytablename = request.getParameter("tablename");
+	JString = decodeEscapeCharacters(JString);
+	modifyparamdata = eval('(' + JString + ')'); 
+
+// 	appendFileText(serverPath+"/log/harshit.txt","\n modifytablename : "+modifytablename);
+// 	appendFileText(serverPath+"/log/harshit.txt","\n modifyparamdata : "+JSON.stringify(modifyparamdata));
+	
+	return modifyMultipleRecord(modifytablename, modifyparamdata,"modify");
+}
+
+  /**
+   *@event      onServerMultiDelete.
+   *@desc       Delete records in to multiple tables
+   *@author     Mukesh Bhupta
+   *@dated      10/12/2012
+   **/
+
+function onServerMultiDelete()
+{	
+	var vViewname=request.getParameter("viewname");
+ 	var vViewpath=request.getParameter("viewpath");
+ 	var sObj = vViewpath+"::"+vViewname+"::Delete";
+ 	LogDebug(sObj);
+ 	if (!checkaccess(sObj,"action")) return request.getAttribute('noaccessHTML');
+	var JString = request.getParameter("JString");
+	modifytablename = request.getParameter("tablename");
+	JString = decodeEscapeCharacters(JString);
+	modifyparamdata = eval('(' + JString + ')'); 
+
+	return modifyMultipleRecord(modifytablename, modifyparamdata,"deleted");
+}
+
+function getTableFieldData(fldname,tname)
+{	
+//  	appendFileText(serverPath+"/log/mukesh.txt","\n  in getTableFieldData action "+action);
+//  	
+//  	appendFileText(serverPath+"/log/mukesh.txt","\n  in getTableFieldData vmainData "+JSON.stringify(vmainData));
+ 	
+	try{
+	if (action == "modify" || action == "delete" || _action ) 
+	{
+		if(vmainData[tname].fieldbyname(fldname)=="0")
+			return "0"
+		else	
+			return ""+(vmainData[tname].fieldbyname(fldname)||"");
+	}
+	return "";	
+	}
+	catch(e)
+	{
+// 		appendFileText(serverPath+"/log/mukesh.txt","\n  in getTableFieldData error "  + e);
+	}
+}
+
+//Added by Harshit - 25032014 - For fetching values for custom fields in multi modify
+function getCustTableFieldData(fldname,tname)
+{
+	try{
+	if (action == "modify" || action == "delete" || _action ) 
+	{
+		if(cust_vmainData[tname].fieldbyname(fldname)=="0")
+			return "0"
+		else	
+			return ""+(cust_vmainData[tname].fieldbyname(fldname)||"");
+	}
+		return "";	
+	}
+	catch(e)
+	{
+ 		appendFileText(serverPath+"/log/CustomFields.txt","\n  in getCustTableFieldData error "  + e);
+	}
+}
+
+function dlog(text_data,overwrite){
+	filepath = serverPath+"/log/dlog.txt"
+	if(overwrite == false){overwrite = false;} else{overwrite = true;}
+	if (overwrite){var writer = new java.io.PrintWriter(filepath);writer.print("");writer.close();}
+	appendFileText(filepath,"\n\n" + new Date().toUTCString() + "--------\n"+ "\n" + text_data + "\n--------------------------------------");
+}
+
+function getSysParameter(paramname,defaultval){
+	var adataset = SQLResultset("select paramvalue from params where upper(trim(paramname)) = '" + paramname.toUpperCase().trim() + "'")
+	if ( adataset.recordcount != 0 )
+		{
+			adataset.recordno = 0
+			return adataset.fieldbyname("paramvalue");
+		}
+	else
+		return defaultval;
+}
