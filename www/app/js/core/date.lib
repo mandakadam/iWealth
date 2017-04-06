@@ -1,0 +1,572 @@
+
+// Field        | Full Form          | Short Form
+// -------------+--------------------+-----------------------
+// Year         | yyyy (4 digits)    | yy (2 digits), y (2 or 4 digits)
+// Month        | MMM (name or abbr.)| MM (2 digits), M (1 or 2 digits)
+//              | NNN (abbr.)        |
+// Day of Month | dd (2 digits)      | d (1 or 2 digits)
+// Day of Week  | EE (name)          | E (abbr)
+// Hour (1-12)  | hh (2 digits)      | h (1 or 2 digits)
+// Hour (0-23)  | HH (2 digits)      | H (1 or 2 digits)
+// Hour (0-11)  | KK (2 digits)      | K (1 or 2 digits)
+// Hour (1-24)  | kk (2 digits)      | k (1 or 2 digits)
+// Minute       | mm (2 digits)      | m (1 or 2 digits)
+// Second       | ss (2 digits)      | s (1 or 2 digits)
+// AM/PM        | a                  |
+//
+// NOTE THE DIFFERENCE BETWEEN MM and mm! Month=MM, not mm!
+// Examples:
+//  "MMM d, y" matches: January 01, 2000
+//                      Dec 1, 1900
+//                      Nov 20, 00
+//  "M/d/yy"   matches: 01/20/00
+//                      9/2/00
+//  "MMM dd, yyyy hh:mm:ssa" matches: "January 01, 2000 12:30:45AM"
+// ------------------------------------------------------------------
+
+var ONE_DAY=1000 * 60 * 60 * 24;
+var MONTH_NAMES=new Array('January','February','March','April','May','June','July','August','September','October','November','December','Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec');
+var DAY_NAMES=new Array('Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sun','Mon','Tue','Wed','Thu','Fri','Sat');
+function LZ(x) {return(x<0||x>9?"":"0")+x}
+
+function isDate(val,format)
+{
+	var date=toDate(val,format);
+	if (date==0)
+		return false
+		
+	return true;
+}
+
+function compareDates(date1,dateformat1,date2,dateformat2) {
+	
+	//return dateformat1;
+	var d1=toDate(date1,dateformat1);
+	var d2=toDate(date2,dateformat2);
+	if (d1==0 || d2==0) {
+		return -1;
+		}
+	else if (d1 > d2) {
+		return 1;
+		}
+	return 0;
+	}
+
+
+function formatDate(date,format) {
+	
+	try
+	{
+	
+	if(date.length <=0 )
+		return "";
+	//return date
+	format=format+"";
+	var result="";
+	var i_format=0;
+	var c="";
+	var token="";
+	var y=date.getYear()+"";
+	var M=date.getMonth()+1;
+	var d=date.getDate();
+	var E=date.getDay();
+	var H=date.getHours();
+	var m=date.getMinutes();
+	var s=date.getSeconds();
+	var yyyy,yy,MMM,MM,dd,hh,h,mm,ss,ampm,HH,H,KK,K,kk,k;
+	// Convert real date parts into formatted versions
+	var value=new Object();
+	if (y.length < 4) {y=""+(y-0+1900);}
+	value["y"]=""+y;
+	value["yyyy"]=y;
+	value["yy"]=y.substring(2,4);
+	value["M"]=M;
+	value["MM"]=LZ(M);
+	value["MMM"]=MONTH_NAMES[M-1];
+	value["NNN"]=MONTH_NAMES[M+11];
+	value["d"]=d;
+	value["dd"]=LZ(d);
+	value["E"]=DAY_NAMES[E+7];
+	value["EE"]=DAY_NAMES[E];
+	value["H"]=H;
+	value["HH"]=LZ(H);
+	if (H==0){value["h"]=12;}
+	else if (H>12){value["h"]=H-12;}
+	else {value["h"]=H;}
+	value["hh"]=LZ(value["h"]);
+	if (H>11){value["K"]=H-12;} else {value["K"]=H;}
+	value["k"]=H+1;
+	value["KK"]=LZ(value["K"]);
+	value["kk"]=LZ(value["k"]);
+	if (H > 11) { value["a"]="PM"; }
+	else { value["a"]="AM"; }
+	value["m"]=m;
+	value["mm"]=LZ(m);
+	value["s"]=s;
+	value["ss"]=LZ(s);
+	while (i_format < format.length) {
+		c=format.charAt(i_format);
+		token="";
+		while ((format.charAt(i_format)==c) && (i_format < format.length)) {
+			token += format.charAt(i_format++);
+			}
+		if (value[token] != null) { result=result + value[token]; }
+		else { result=result + token; }
+		}
+	return result;
+	}
+	catch(e)
+	{
+		return date;	
+	}
+	}
+// ------------------------------------------------------------------
+// Utility functions for parsing in toDate()
+// ------------------------------------------------------------------
+function _isInteger(val) {
+	var digits="1234567890";
+	for (var i=0; i < val.length; i++) {
+		if (digits.indexOf(val.charAt(i))==-1) { return false; }
+		}
+	return true;
+	}
+function _getInt(str,i,minlength,maxlength) {
+	for (var x=maxlength; x>=minlength; x--) {
+		var token=str.substring(i,i+x);
+		if (token.length < minlength) { return null; }
+		if (_isInteger(token)) { return token; }
+		}
+	return null;
+	}
+
+function toDate(val,format)
+{
+	if(!val || (val+"").length <= 0)
+		return "";
+	
+	val=val+"";
+	format=format+"";
+	var i_val=0;
+	var i_format=0;
+	var c="";
+	var token="";
+	var token2="";
+	var x,y;
+	var now=new Date();
+	var year=now.getYear();
+	var month=now.getMonth()+1;
+	var date=1;
+	var hh=now.getHours();
+	var mm=now.getMinutes();
+	var ss=now.getSeconds();
+	var ampm="";
+	while (i_format < format.length) {
+		// Get next token from format string
+		c=format.charAt(i_format);
+		token="";
+		while ((format.charAt(i_format)==c) && (i_format < format.length)) {
+			token += format.charAt(i_format++);
+			}
+		// Extract contents of value based on format token
+		if (token=="yyyy" || token=="yy" || token=="y") {
+			if (token=="yyyy") { x=4;y=4; }
+			if (token=="yy")   { x=2;y=2; }
+			if (token=="y")    { x=2;y=4; }
+			year=_getInt(val,i_val,x,y);
+			if (year==null) { return 0; }
+			i_val += year.length;
+			if (year.length==2) {
+				if (year > 70) { year=1900+(year-0); }
+				else { year=2000+(year-0); }
+				}
+			}
+		else if (token=="MMM"||token=="NNN"){
+			month=0;
+			for (var i=0; i<MONTH_NAMES.length; i++) {
+				var month_name=MONTH_NAMES[i];
+				if (val.substring(i_val,i_val+month_name.length).toLowerCase()==month_name.toLowerCase()) {
+					if (token=="MMM"||(token=="NNN"&&i>11)) {
+						month=i+1;
+						if (month>12) { month -= 12; }
+						i_val += month_name.length;
+						break;
+						}
+					}
+				}
+			if ((month < 1)||(month>12)){return 0;}
+			
+			}
+		else if (token=="EE"||token=="E"){
+			for (var i=0; i<DAY_NAMES.length; i++) {
+				var day_name=DAY_NAMES[i];
+				if (val.substring(i_val,i_val+day_name.length).toLowerCase()==day_name.toLowerCase()) {
+					i_val += day_name.length;
+					break;
+					}
+				}
+			}
+		else if (token=="MM"||token=="M") {
+			month=_getInt(val,i_val,token.length,2);
+			if(month==null||(month<1)||(month>12)){return 0;}
+			i_val+=month.length;}
+		else if (token=="dd"||token=="d") {
+			date=_getInt(val,i_val,token.length,2);
+			if(date==null||(date<1)||(date>31)){return 0;}
+			i_val+=date.length;}
+		else if (token=="hh"||token=="h") {
+			hh=_getInt(val,i_val,token.length,2);
+			if(hh==null||(hh<1)||(hh>12)){return 0;}
+			i_val+=hh.length;}
+		else if (token=="HH"||token=="H") {
+			hh=_getInt(val,i_val,token.length,2);
+			if(hh==null||(hh<0)||(hh>23)){return 0;}
+			i_val+=hh.length;}
+		else if (token=="KK"||token=="K") {
+			hh=_getInt(val,i_val,token.length,2);
+			if(hh==null||(hh<0)||(hh>11)){return 0;}
+			i_val+=hh.length;}
+		else if (token=="kk"||token=="k") {
+			hh=_getInt(val,i_val,token.length,2);
+			if(hh==null||(hh<0)||(hh>24)){return 0;}
+			i_val+=hh.length;hh--;}
+		else if (token=="mm"||token=="m") {
+			mm=_getInt(val,i_val,token.length,2);
+			if(mm==null||(mm<0)||(mm>59)){return 0;}
+			i_val+=mm.length;}
+		else if (token=="ss"||token=="s") {
+			ss=_getInt(val,i_val,token.length,2);
+			if(ss==null||(ss<0)||(ss>59)){return 0;}
+			i_val+=ss.length;}
+		else if (token=="a") {
+			if (val.substring(i_val,i_val+2).toLowerCase()=="am") {ampm="AM";}
+			else if (val.substring(i_val,i_val+2).toLowerCase()=="pm") {ampm="PM";}
+			else {return 0;}
+			i_val+=2;}
+		else {
+			if (val.substring(i_val,i_val+token.length)!=token) {return 0;}
+			else {i_val+=token.length;}
+			}
+		}
+	// If there are any trailing characters left in the value, it doesn't match
+	//if (i_val != val.length) { return 0; }
+	// Is date valid for month?
+	if (month==2) {
+		// Check for leap year
+		if ( ( (year%4==0)&&(year%100 != 0) ) || (year%400==0) ) { // leap year
+			if (date > 29){ return 0; }
+			}
+		else { if (date > 28) { return 0; } }
+		}
+	if ((month==4)||(month==6)||(month==9)||(month==11)) {
+		if (date > 30) { return 0; }
+		}
+	// Correct hours value
+	if (hh<12 && ampm=="PM") { hh=hh-0+12; }
+	else if (hh>11 && ampm=="AM") { hh-=12; }
+	
+	if(hh == -1)
+		hh = 0;
+	var newdate=new Date(year,month-1,date,hh,mm,ss);
+	
+	return newdate;
+	}
+
+	
+	
+function DateAdding(intval, numb, base)
+{
+	/*intval is YYYY, M, D, H, N, S as in VBscript; numb is amount +/-; base is javascript date object*/
+	switch(intval){
+		case "M":
+			base.setMonth(base.getMonth() + numb);
+			break;
+		case "YYYY":
+			base.setFullYear(base.getFullYear() + numb);
+			break;
+		case "D":
+			base.setDate(base.getDate() + numb);
+			break;
+		case "H":
+			base.setHours(base.getHours() + numb);
+			break;
+		case "N":
+			base.setMinutes(base.getMinutes() + numb);
+			break;
+		case "S":
+			base.setSeconds(base.getSeconds() + numb);
+			break;
+		default:
+	}
+	return base;
+}
+
+function DateAdd(v_Period,v_Number,v_Date,v_Format)
+{
+  if(v_Number==0)return v_Date; 
+	if(v_Number)
+	{
+		if (v_Date)					
+		{
+			if(isDate(v_Date,v_Format)==true)
+			{
+				var date1=toDate(v_Date,v_Format);						
+				var FormatedDate=DateAdding(v_Period, parseInt(v_Number), date1);
+				return formatDate(FormatedDate,v_Format);				
+			}
+		}
+	}
+}
+
+	
+function getDateFormat(vName)
+{
+			if('date'.equalsIgnoreCase(vName))
+				return "dd-MM-yy";
+			else
+				return null;			
+}
+
+
+
+function datediff(date1,d1_format,date2,d2_format)
+{
+	
+	var one_day=1000*60*60*24;
+	var newdate1 = toDate(date1,d1_format);
+	var newdate2 = toDate(date2,d2_format);
+	var diff=Math.ceil((newdate1.getTime()-newdate2.getTime())/(one_day));
+	
+	return diff;
+}
+
+/**
+ * Get day number from date for GERMAN method
+ * @param dn (number) day number
+ * @param date (Date)
+ @ return day number 0-30
+ */
+function _dayNumberGerman(dn, date) {
+    if ( dn == 31 )
+        return 30;
+    else if ( _endFeb(date) )
+        return 30;
+    else
+        return dn;
+}
+
+/**
+ * Check whether date is the last day of february
+ * @param date (Date)
+ * @return true is date is the last day of february
+ *         false otherwise
+ */
+function _endFeb(date) {
+    var d = new Date();
+    d.setMonth(date.getMonth());
+    d.setFullYear(date.getFullYear());
+    d.setDate(date.getDate() + 1);
+    
+    if ( d.getDate() == 1 && d.getMonth() + 1 == 3 )
+        return true;
+    else
+        return false;
+}
+
+
+/**
+ * Calculates number of days between dateFrom and dateTo
+ * @param dateFrom (Date)
+ * @param dateTo (Date)
+ * @return int, number of days
+ */
+function _dateDifference(dateFrom, dateTo) {
+    return Math.ceil( (dateTo.getTime() - dateFrom.getTime())/ONE_DAY );
+}
+
+
+/**
+ * Check if year is a leap year
+ * @param year format yyyy (number)
+ * @return true if year is leap year 
+ *         false otherwise
+ */
+function _isLeapYear(year) {
+    var isLeapYear = year % 4 == 0 && year % 100 != 0 || year % 400 == 0;
+    return isLeapYear;
+}
+
+/**
+ * Calculate day representing last day of Feb for a given year
+ *
+ * @param year (number) yyyy format
+ * @return (Date) that represent last day of Feb for a given year
+ */
+function _getLastFeb(year) {
+    var d = new Date();
+    d.setFullYear(year, 2, 1)
+    d.setDate(d.getDate() - 1);
+    return d;
+}
+
+
+/**
+ * Check if date is the last day of a month
+ *
+ * @param date (Date)
+ * 
+ * @return true is date is the last day of a month
+ *         false otherwise
+ */
+function _lastDayOfMonth(date) {
+    var d = new Date();
+    d.setFullYear(date.getFullYear(), date.getMonth(), date.getDate());
+    d.setDate(d.getDate() + 1);
+    return d.getDate() == 1;
+}
+/**
+ * Return min of the two dates
+ *
+ * @param date1 (Date)
+ * @param date2 (Date)
+ *
+ * @return date1 if date1 < date2
+ *         date2 if date1 >= date2
+ */
+function _minDate(date1, date2) {
+    return date1 < date2 ? date1 : date2;
+}
+
+   
+    /**
+     * Check if 1st of a given month, m1, plus d3 day is still 
+     * in the same month
+     *
+     * @param y1 year yyyy (number)
+     * @param m1 month (number) (0-11) 
+     * @param d3 day (number) (1-31)
+     *
+     * @return true if 1st of m1 plus d3 days is NOT in the same month
+     *         false otherwise
+     */
+    function _nextMonth(y1, m1, d3) {
+        var d = new Date();
+        d.setFullYear(y1, m1, 1);
+        d.setDate(d.getDate() + d3);
+        return d.getMonth() != m1;
+    }
+   
+    /**
+     * Check if date is the last day of a month
+     *
+     * @param date (Date)
+     * 
+     * @return true is date is the last day of a month
+     *         false otherwise
+     */
+    function _lastDayOfMonth(date) {
+        var d = new Date();
+        d.setFullYear(date.getFullYear(), date.getMonth(), date.getDate());
+        d.setDate(d.getDate() + 1);
+        return d.getDate() == 1;
+    }
+
+    /**
+     * @return date (Date) representing last day of the yyyy.mm
+     */
+    function _getLastDay(yyyy, mm) {
+        var d = new Date();
+        d.setFullYear(yyyy, mm + 1, 1);
+        d.setDate(d.getDate() - 1);
+        return d;
+    }
+
+    /**
+     * @return date (Date) representing first day of the yyyy.mm
+     */
+    function _getFirstDay(yyyy, mm) {
+        var d = new Date();
+        d.setFullYear(yyyy, mm, 1);
+        return d;
+    }
+
+
+    /**
+     * Get new year starting from mm.yyyy going +/- num months
+     * @param yyyy year (number)
+     * @param mm month (number)
+     * @param num number of months (number)
+     * @return year yyyy (number)
+     */
+    function _getNewYear(yyyy, mm, num) {
+        var nm = mm + num;
+        var ny;
+
+        if ( nm > 0 ) {
+           ny = yyyy + _divInt((nm-1), 12); 
+        }
+        else {
+            ny = yyyy - 1 + _divInt(nm, 12); 
+        }
+        return ny;
+    }
+   
+    /**
+     * Get new month +/- num months
+     * @param mm (number) month
+     * @param num (number) number of month to be added/deleted
+     * @return new month number (number)
+     */
+    function _getNewMonth(mm, num) {
+        var nm = mm + num;
+
+        if ( nm > 0 ) 
+            return (nm - 1) % 12 + 1;
+        else if ( nm == 0 )
+            return nm;
+        else
+            return 12 + (nm % 12);    
+    }
+    
+    /**
+     * Divide to integers int1 / int2
+     * @param int1 (number) integer 1
+     * @param int2 (nubmer) interger 2
+     * @return int1/int2 (number)
+     */
+    function _divInt(int1, int2) {
+        var reminder = int1 % int2;
+        var quotient = (int1 - reminder) / int2;
+
+        if ( quotient >= 0 )
+            quotient = Math.floor(quotient);
+        else
+            quotient = Math.ceil(quotient);
+
+        return quotient;
+    }
+
+    /**
+     * @param date1 (Date)
+     * @param date2 (Date)
+     * @return max date1 and date2
+     */
+    function _max(date1, date2) {
+        return date1 > date2 ? date1 : date2;
+    }
+
+    /**
+     * @param date1 (Date)
+     * @param date2 (Date)
+     * @return min date1 and date2
+     */
+    function _min(date1, date2) {
+        return date1 < date2 ? date1 : date2;
+    }
+    
+    
+function DATEADD(v_Period,v_Number,v_Date,v_DateFormat)
+{
+	v_Period=v_Period.toUpperCase();
+	var res = DateAdd(v_Period,v_Number,v_Date,v_DateFormat);
+	return (res.toString());
+}    

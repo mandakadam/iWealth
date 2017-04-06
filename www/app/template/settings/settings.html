@@ -1,0 +1,58 @@
+ <h3 class="mHead">Alerts</h3> 
+           <form class="form-horizontal" id="frmAlert" name="frmAlert">            
+            <div class="col-md-10 col-xs-10">
+              <label class="control-label">Weekly portfolio alert</label>
+            </div>
+            <div class="col-md-2 col-xs-2">
+              <div class="pull-right">
+                <label class="switch"><input id="chkALERT1" fieldname="ALERT1"  type="checkbox" ><div class="slider round"></div></label>
+              </div>
+            </div>
+            <div class="col-md-10 col-xs-10">
+             <label class="control-label">Monthly statement</label>            
+           </div>
+           <div class="col-md-2 col-xs-2">
+            <div class="pull-right">
+              <label class="switch"><input id="chkALERT2" fieldname="ALERT2" type="checkbox"><div class="slider round"></div></label>
+            </div>
+          </div>
+          <div class="col-md-10 col-xs-10">                 
+            <label class="control-label">Weekly news letter</label>              
+          </div>
+          <div class="col-md-2 col-xs-2">
+            <div class="pull-right">
+              <label class="switch"><input type="checkbox" fieldname="ALERT3" id="chkALERT3" ><div class="slider round"></div></label>
+            </div>
+          </div>
+          </form>    
+
+      <h3 class="mHead">Password</h3>             
+      
+       <form class="form-horizontal" id="frmsettings" name="frmsettings"> 
+       <div class="col-xs-12">     
+        <div class="form-group"> 
+          <label for="txtoldpwd" class="col-sm-3 col-xs-2 control-label">Old password</label>                 
+          <div class="col-sm-5 col-xs-10">
+            <input type="password" class="form-control" id="txtoldpwd" placeholder="Please enter old password" fieldname="" validator="nonEmpty">
+          </div>
+        </div>                    
+        <div class="form-group">  
+          <label for="txtnewpwd" class="col-sm-3 col-xs-2 control-label">New password</label>                         
+          <div class="col-sm-5 col-xs-10">
+            <input type="password" class="form-control" id="txtnewpwd" placeholder="Please enter new password" fieldname="" validator="nonEmpty">
+          </div>
+        </div>
+        <div class="form-group">    
+          <label for="txtcnfrmpwd" class="col-sm-3 col-xs-2 control-label">Confirm password</label>                       
+          <div class="col-sm-5 col-xs-10">
+            <input type="password" class="form-control" id="txtcnfrmpwd" placeholder="Please enter confirm password" fieldname="" validator="nonEmpty">
+          </div>
+        </div>
+        <div class="form-group"> 
+          <div class="col-sm-5 col-sm-offset-3 col-xs-12">                
+          <a class="btn btn-mt btn-block yellow" id="btnchangepwd" >Change password</a>
+          </div>                
+        </div>                
+       </div>
+        </form>
+
