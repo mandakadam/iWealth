@@ -1,0 +1,106 @@
+<h3 class="mHead">
+  <b>Equity</b>
+  <a href="#Trade/V2" class="backBtn">
+    <i class="fa fa-angle-left"></i>
+    Back
+  </a>
+</h3>
+
+             
+    <form class="form-horizontal" id="frmequity" name="frmequity">  
+    <div id="euqityForm">
+     <input type="hidden" id="trans_type" name="trans_type"  fieldname="trans_type" value="" />
+     <input type="hidden" id="assetclass" name="assetclass" fieldname="assetclass" value="EQ"/>
+     <input type="hidden" id="entryon" name="entryon" fieldname="entryon"  value=""/>   
+    
+      <div class="col-md-12">
+
+        <div class="form-group">
+          <label for="txtequityacct" class="col-xs-12 control-label">Transaction Type</label>
+          <div class="col-xs-12 mtForm">
+              <input class="with-gap" type="radio" name="transGroup" id="btnbuy"  autocomplete="off" checked> 
+              <label for="btnbuy" id="lblbuy">Buy</label>
+
+              <input class="with-gap" type="radio" id="btnsell" name="transGroup" name="btnsell" autocomplete="off"> 
+              <label for="btnsell" id="lblsell">Sell</label>                
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label for="txtequityacct" class="col-xs-12 control-label">Account</label>
+          <div class="col-xs-12">
+            <select class="form-control" id="txtequityacct" fieldname="accountid" name="txtequityacct" validator="nonEmpty"></select>
+          </div>
+        </div>
+        <div class="form-group">
+          <label for="txtequitysecurity" class="col-xs-12 control-label">Security</label>
+          <div class="col-xs-12">
+            <select class="form-control" id="txtequitysecurity" fieldname="security" name="txtequitysecurity" validator="nonEmpty"></select>
+          </div>
+        </div>
+
+      
+        <div class="form-group" id="eqbalqty" style="display:none">
+          <label for="txtequitybalqty" class="col-xs-12 control-label">Balance Quantity</label>
+          <div class="col-xs-12">
+           <label class="form-control" id="txtequitybalqty" name="txtequitybalqty"></label>
+         </div>
+       </div>
+
+      
+      <div class="form-group" id="qtyblock">
+        <label for="txtequityqty" class="col-xs-12 control-label">Quantity</label>
+        <div class="col-xs-12">
+          <input type="text" class="form-control iwebz-numbermask"  id="txtequityqty" fieldname="quantity" name="txtequityqty" validator="">
+        </div>
+      </div>
+
+      <div class="form-group" id="priceblock"> <!-- new -->
+        <label for="txtequityprice" class="col-xs-12 control-label">Price</label>
+        <div class="col-xs-12">
+          <input type="text" class="form-control iwebz-numbermask"  id="txtequityprice" fieldname="price" name="txtequityprice" validator="">
+        </div>
+      </div>
+
+
+       <div class="form-group" id="amtblock">
+        <label for="txtequityamt" class="col-xs-12 control-label">Amount</label>
+        <div class="col-xs-12">
+          <input type="text" class="form-control iwebz-numbermask"  id="txtequityamt" fieldname="amount" name="txtequityamt" validator="">
+        </div>
+      </div>
+
+
+      <div class="form-group" id="ordertypeblock"> <!-- new -->
+        <label for="txtequityordertype" class="col-xs-12 control-label">Order Type</label>
+        <div class="col-xs-12">
+           <select class="form-control" id="txtequityordertype" fieldname="ordertype" name="txtequityordertype" validator="nonEmpty">
+              <option name="Limit" value="1">Limit</option>
+              <option name="Market" value="0">Market</option>
+            </select>
+        </div>
+      </div>
+
+
+      <div class="form-group">
+        <div class="col-xs-12">
+            <a class="btn btn-mt yellow" id="btnSummary">Place Request</a> 
+        </div> 
+      </div>
+            
+    </div> 
+  </div>
+
+
+<div id="orderSummary" style="display:none">
+  <ul class="summaryList">
+  </ul>
+  <div class="summaryBtn text-center">
+      <a class="btn btn-danger" id="btnModifyreq"><i class="fa fa-angle-left"></i>  Modify</a> 
+      <a class="btn btn-success" id="btnplacereq">Proceed</a>
+  
+  </div>
+</div>
+
+
+</form>

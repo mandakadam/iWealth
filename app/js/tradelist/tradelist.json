@@ -1,0 +1,65 @@
+{
+	"data": 
+		[
+				{
+					"tradeType": "Equity",
+					"company": "Reliance",
+					"req_id": "6", 
+					"accountid": "115",
+					"exchange": "BSE",
+					"acct_Name" : "Discretionary",
+					"trans_type": "Buy",
+					"security": "USD", 
+					"quantity": "0",
+					"price": "0",
+					"amount": "800000",
+					"entryon" : "03-06-2017",
+					"status" : "pending"
+				},
+				{	
+					"tradeType": "Cash",
+					"company": "Infosys",
+					"req_id": "3", 
+					"accountid": "115",
+					"exchange": "BSE",
+					"acct_Name" : "Discretionary",
+					"trans_type": "Sell",
+					"security": "USD", 
+					"quantity": "0",
+					"price": "0",
+					"amount": "800000",
+					"entryon" : "03-06-2017",
+					"status" : "completed"
+				},
+				{	
+					"tradeType": "Bonds",
+					"company": "Reliance Com",
+					"req_id": "7", 
+					"accountid": "115",
+					"exchange": "BSE",
+					"acct_Name" : "Discretionary",
+					"trans_type": "CASH-IN",
+					"security": "USD", 
+					"quantity": "0",
+					"price": "0",
+					"amount": "800000",
+					"entryon" : "03-06-2017",
+					"status" : "pending"
+				},
+				{	
+					"tradeType": "Unit Trust",
+					"company": "Tata Power",
+					"req_id": "8", 
+					"accountid": "115",
+					"exchange": "BSE",
+					"acct_Name" : "Discretionary",
+					"trans_type": "CASH-IN",
+					"security": "USD", 
+					"quantity": "0",
+					"price": "0",
+					"amount": "800000",
+					"entryon" : "03-06-2017",
+					"status" : "pending"
+				}
+		]
+}	

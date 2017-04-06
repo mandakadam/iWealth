@@ -1,0 +1,21 @@
+{
+	"data": 
+		[
+				{
+					"company": "Reliance Comm",
+					"gainloss_amnt": "10.45",
+					"gainloss_perc": "+1.03%",
+					"marketvalue": "1022.00",
+					"acc_name": "NSE",
+					"date": "Mar 06, 2017"
+				},
+				{
+					"company": "Infosys",
+					"gainloss_amnt": "12.45",
+					"gainloss_perc": "+2.03%",
+					"marketvalue": "1322.00",
+					"acc_name": "NSE",
+					"date": "Mar 06, 2017"
+				}
+		]
+}	
